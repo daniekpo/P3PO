@@ -36,7 +36,7 @@ feature_key: "features"
 save_snapshot: true
 
 task_make_fn:
-  _target_: suite.ur5e_gym.make
+  _target_: suite.ur5e_suite.make
   # suite: ${suite.task.suite}
   # scenes: ${suite.task.scenes}
   # tasks: ${suite.task.tasks}

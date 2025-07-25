@@ -2,6 +2,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Train: ur5e",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p3po/train.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
+            },
+            "args": "agent=baku suite=ur5e_suite dataloader=p3po_xarm 'suite.task.tasks=[put_in_chest]' suite.hidden_dim=256 use_proprio=false",
+            "cwd": "${workspaceFolder}/p3po",
+            "justMyCode": true
+        },
+        {
             "name": "Python: Train Script",
             "type": "debugpy",
             "request": "launch",

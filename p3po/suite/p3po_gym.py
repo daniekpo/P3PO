@@ -104,7 +104,7 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
         obs["goal_achieved"] = info["success"]
         if len(self.depth_keys) > 0:
             obs["depth"] = self.get_depth()
-            
+
         self.episode_step += 1
         if self.episode_step == self.max_path_length:
             done = True
@@ -145,7 +145,7 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
             depth = depth * (depth < 10)
         else:
             depth = self._env.get_depth()
-        
+
         depth = cv2.resize(depth, (width, height))
         return depth
 

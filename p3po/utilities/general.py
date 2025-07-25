@@ -3,8 +3,9 @@ import json
 import cv2
 import numpy as np
 from pathlib import Path
+from typing import Union
 
-def ensure_path(*path_segments: str | Path) -> Path:
+def ensure_path(*path_segments: Union[str, Path]) -> Path:
     path = Path(*path_segments)
 
     # If it looks like a file (has suffix), create parent dirs
@@ -15,7 +16,7 @@ def ensure_path(*path_segments: str | Path) -> Path:
 
     return path
 
-def get_last_dir_name(path_str: str | Path) -> str:
+def get_last_dir_name(path_str: Union[str, Path]) -> str:
     path = Path(path_str)
     return path.name if path.is_dir() else path.parent.name
 

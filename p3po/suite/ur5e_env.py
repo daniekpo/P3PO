@@ -1,9 +1,16 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+import random
 
-from utils.robot import Robot
-from camera_manager import CameraManager
+from utilities.robot import Robot
+from utilities.camera_manager import CameraManager
+
+'''
+X: min: -0.2966571473135897 max: 0.49383734924956946
+Y: min: -0.80490048532146 max: -0.20859620805567852
+Z: min: 0.23781020226938232 max: 0.6900017827785798
+'''
 
 class UR5Env(gym.Env):
     """
@@ -18,11 +25,14 @@ class UR5Env(gym.Env):
     """
     metadata = {"render_modes": ["human"], "render_fps": 10}
 
-    def __init__(self, camera_names=None, include_depth=False, host='169.254.129.1'):
+    def __init__(self, camera_names=None, include_depth=False, host='169.254.129.1', training=True):
         super().__init__()
-        self.robot = Robot(host=host)
-        self.camera_manager = CameraManager(camera_names=camera_names)
+        self.host = host
+        self.robot = None
+        self.camera_names = camera_names
+        self.camera_manager = CameraManager(camera_names=self.camera_names)
         self.include_depth = include_depth
+        self.training = training
 
         # Action: [x, y, z, rx, ry, rz, gripper]
         # Use conservative bounds for translation/rotation, gripper in [0, 1]
@@ -40,7 +50,7 @@ class UR5Env(gym.Env):
 
         # Observation: images, depths (optional), joints, pose
         obs_spaces = {
-            'images': spaces.Dict({
+            'pixels': spaces.Dict({
                 name: spaces.Box(0, 255, shape=(480, 640, 3), dtype=np.uint8) for name in self.camera_names}),
             'joints': spaces.Box(-np.pi, np.pi, shape=(6,), dtype=np.float32),
             'pose': spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
@@ -50,14 +60,25 @@ class UR5Env(gym.Env):
             obs_spaces['depths'] = spaces.Dict({name: spaces.Box(0, 65535, shape=(480, 640), dtype=np.uint16) for name in self.camera_names})
         self.observation_space = spaces.Dict(obs_spaces)
 
+        # We don't need this for training since training is done offline
+        # if not self.training:
+        #     self.__init_robot__()
+        self.__init_robot__(training=self.training)
+
+    def __init_robot__(self, training):
+        read_only = training
+        self.robot = Robot(host=self.host, read_only=read_only)
+
+
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
 
-        self.robot.go_home()
-        self.robot.open_gripper()
+        if not self.training:
+            self.robot.go_home()
+            self.robot.open_gripper()
 
         obs = self._get_obs()
-        return obs, {}
+        return obs
 
     def step(self, action):
         pose = np.array(action[:6], dtype=np.float32)
@@ -81,7 +102,7 @@ class UR5Env(gym.Env):
         data = self.camera_manager.get_data()
         images = {name: data[name][0] for name in self.camera_names if name in data}
         obs = {
-            'images': images,
+            'pixels': images,
             'joints': np.array(self.robot.getj(), dtype=np.float32),
             'pose': np.array(self.robot.getl(), dtype=np.float32),
         }
@@ -94,9 +115,17 @@ class UR5Env(gym.Env):
         # Simple render: show first camera's RGB image
         import cv2
         obs = self._get_obs()
-        img = next(iter(obs['images'].values()))
+        img = next(iter(obs['pixels'].values()))
         cv2.imshow("UR5Env Camera", img)
         cv2.waitKey(1)
+
+    def seed(self, seed=None):
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
+        self._seed = seed
+        return [seed]
 
     def close(self):
         self.robot.close()

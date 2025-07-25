@@ -1,22 +1,18 @@
-from data_generation.mw_info import CAMERA
-from data_generation.mw_info import NUM_STEPS as MAX_PATH_LENGTH
-
 from collections import deque
 from typing import Any, NamedTuple
 
 import gym
-from gym import Wrapper, spaces
+from gym import spaces
 
+# import xarm_env
 import dm_env
 import numpy as np
 from dm_env import StepType, specs, TimeStep
-from dm_control.utils import rewards
 
 import cv2
-import random
-import mujoco
-
 from sentence_transformers import SentenceTransformer
+
+from .ur5e_env import UR5Env
 
 sentence_encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -32,83 +28,116 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
     def __init__(
         self,
         env,
-        width=84,
-        height=84,
-        max_path_length=125,
-        max_state_dim=0,
-        depth_keys=[],
-        mujoco_env = False,
+        max_episode_len=300,
+        max_state_dim=100,
+        task_description="",
+        pixel_keys=["pixels0"],
+        use_robot=True,
     ):
-        self.name = "Gym Environment"
-
         self._env = env
-        self._width = width
-        self._height = height
-        self.max_path_length = max_path_length
-        self.max_state_dim = max_state_dim
-        self.depth_keys = depth_keys
-        self.mujoco_env = mujoco_env
-
-        # dummy render to init opengl context
-        dummy_obs = self.render()
-        self.observation_space = spaces.Box(
-            low=0, high=255, shape=dummy_obs.shape, dtype=dummy_obs.dtype
-        )
-        self.action_space = self._env.action_space
+        self._max_episode_len = max_episode_len
+        self._max_state_dim = max_state_dim
+        self._task_description = task_description
+        self.pixel_keys = pixel_keys
+        self.use_robot = use_robot
 
         # task emb
-        self.task_emb = sentence_encoder.encode(self.name)
+        self.task_emb = sentence_encoder.encode(self._task_description)
 
-        # Action spec
-        wrapped_action_spec = self.action_space
-        if not hasattr(wrapped_action_spec, "minimum"):
-            wrapped_action_spec.minimum = -np.ones(wrapped_action_spec.shape)
-        if not hasattr(wrapped_action_spec, "maximum"):
-            wrapped_action_spec.maximum = np.ones(wrapped_action_spec.shape)
-        self._action_spec = specs.BoundedArray(
-            wrapped_action_spec.shape,
-            np.float32,
-            wrapped_action_spec.minimum,
-            wrapped_action_spec.maximum,
-            "action",
+        obs = self._env.reset()
+        if self.use_robot:
+            pixels = obs[pixel_keys[0]]
+            self.observation_space = spaces.Box(
+                low=0, high=255, shape=pixels.shape, dtype=pixels.dtype
+            )
+
+            # Action spec
+            action_spec = self._env.action_space
+            self._action_spec = specs.Array(
+                shape=action_spec.shape, dtype=action_spec.dtype, name="action"
+            )
+            # Observation spec
+            robot_state = obs["features"]
+            self._obs_spec = {}
+            for key in pixel_keys:
+                self._obs_spec[key] = specs.BoundedArray(
+                    shape=obs[key].shape,
+                    dtype=np.uint8,
+                    minimum=0,
+                    maximum=255,
+                    name=key,
+                )
+            self._obs_spec["proprioceptive"] = specs.BoundedArray(
+                shape=robot_state.shape,
+                dtype=np.float32,
+                minimum=-np.inf,
+                maximum=np.inf,
+                name="proprioceptive",
+            )
+        else:
+            pixels, features = obs["pixels"], obs["features"]
+            self.observation_space = spaces.Box(
+                low=0, high=255, shape=pixels.shape, dtype=pixels.dtype
+            )
+
+            # Action spec
+            action_spec = self._env.action_space
+            self._action_spec = specs.Array(
+                shape=action_spec.shape, dtype=action_spec.dtype, name="action"
+            )
+
+            # Observation spec
+            self._obs_spec = {}
+            for key in pixel_keys:
+                self._obs_spec[key] = specs.BoundedArray(
+                    shape=pixels.shape,
+                    dtype=np.uint8,
+                    minimum=0,
+                    maximum=255,
+                    name=key,
+                )
+            self._obs_spec["proprioceptive"] = specs.BoundedArray(
+                shape=features.shape,
+                dtype=np.float32,
+                minimum=-np.inf,
+                maximum=np.inf,
+                name="proprioceptive",
+            )
+        self._obs_spec["features"] = specs.BoundedArray(
+            shape=(self._max_state_dim,),
+            dtype=np.float32,
+            minimum=-np.inf,
+            maximum=np.inf,
+            name="features",
         )
-        # Observation spec
-        self._obs_spec = {}
-        self._obs_spec["pixels"] = specs.BoundedArray(
-            shape=self.observation_space.shape,
-            dtype=np.uint8,
-            minimum=0,
-            maximum=255,
-            name="observation",
-        )
+
+        self.render_image = None
 
     def reset(self, **kwargs):
-        # Set episode step to 0
-        self.episode_step = 0
+        self._step = 0
+        obs = self._env.reset(**kwargs)
 
-        obs = {}
-        state = self._env.reset(**kwargs)[0].astype(np.float32)
-        state, _, _, _, _ = self._env.step(np.zeros(self.action_space.shape))
-        obs["pixels"] = self.get_frame()
-        obs["task_emb"] = self.task_emb
-        obs["goal_achieved"] = False
-        if len(self.depth_keys) > 0:
-            obs["depth"] = self.get_depth()
-        return obs
+        observation = {}
+        for key in self.pixel_keys:
+            observation[key] = obs[key]
+        observation["proprioceptive"] = obs["features"]
+        observation["features"] = obs["features"]
+        observation["task_emb"] = self.task_emb
+        observation["goal_achieved"] = False
+        return observation
 
     def step(self, action):
-        observation, reward, _, done, info = self._env.step(action)
-        obs = {}
-        obs["pixels"] = self.get_frame()
-        obs["task_emb"] = self.task_emb
-        obs["goal_achieved"] = info["success"]
-        if len(self.depth_keys) > 0:
-            obs["depth"] = self.get_depth()
-            
-        self.episode_step += 1
-        if self.episode_step == self.max_path_length:
-            done = True
-        return obs, reward, done, info
+        self._step += 1
+        obs, reward, done, info = self._env.step(action)
+
+        observation = {}
+        for key in self.pixel_keys:
+            observation[key] = obs[key]
+        observation["proprioceptive"] = obs["features"]
+        observation["features"] = obs["features"]
+        observation["task_emb"] = self.task_emb
+        observation["goal_achieved"] = done
+        return observation, reward, done, info
 
     def observation_spec(self):
         return self._obs_spec
@@ -117,60 +146,10 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
         return self._action_spec
 
     def render(self, mode="rgb_array", width=256, height=256):
-        if mode == "rgb_array":
-            frame = self.get_frame(width, height)
-            return frame
-        else:
-            self._env.render_mode = "human"
-            self._env.render()
-
-    def get_frame(self, width=None, height=None):
-        width = self._width if width is None else width
-        height = self._height if height is None else height
-        # self._env.mujoco_renderer.viewer.make_context_current()
-        frame = self._env.render()[::-1, :]
-        frame = cv2.resize(frame, (width, height))
-        return frame
-
-    def get_depth(self, width=None, height=None):
-        width = self._width if width is None else width
-        height = self._height if height is None else height
-        if self.mujoco_env:
-            depth = self._env.mujoco_renderer.render("depth_array")[::-1, :]
-
-            extent = self._env.model.stat.extent
-            near = self._env.model.vis.map.znear * extent
-            far = self._env.model.vis.map.zfar * extent
-            depth = near / (1 - depth * (1 - near / far))
-            depth = depth * (depth < 10)
-        else:
-            depth = self._env.get_depth()
-        
-        depth = cv2.resize(depth, (width, height))
-        return depth
+        return cv2.resize(self._env.render("rgb_array"), (width, height))
 
     def __getattr__(self, name):
         return getattr(self._env, name)
-
-
-class ExtendedTimeStep(NamedTuple):
-    step_type: Any
-    reward: Any
-    discount: Any
-    observation: Any
-    action: Any
-
-    def first(self):
-        return self.step_type == StepType.FIRST
-
-    def mid(self):
-        return self.step_type == StepType.MID
-
-    def last(self):
-        return self.step_type == StepType.LAST
-
-    def __getitem__(self, attr):
-        return getattr(self, attr)
 
 
 class ActionRepeatWrapper(dm_env.Environment):
@@ -196,8 +175,8 @@ class ActionRepeatWrapper(dm_env.Environment):
     def action_spec(self):
         return self._env.action_spec()
 
-    def reset(self):
-        return self._env.reset()
+    def reset(self, **kwargs):
+        return self._env.reset(**kwargs)
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -207,53 +186,70 @@ class FrameStackWrapper(dm_env.Environment):
     def __init__(self, env, num_frames):
         self._env = env
         self._num_frames = num_frames
-        self._frames = deque([], maxlen=num_frames)
 
-        wrapped_obs_spec = env.observation_spec()["pixels"]
+        self.pixel_keys = [
+            keys for keys in env.observation_spec().keys() if "pixels" in keys
+        ]
+        wrapped_obs_spec = env.observation_spec()[self.pixel_keys[0]]
+
+        # frames lists
+        self._frames = {}
+        for key in self.pixel_keys:
+            self._frames[key] = deque([], maxlen=num_frames)
 
         pixels_shape = wrapped_obs_spec.shape
         if len(pixels_shape) == 4:
             pixels_shape = pixels_shape[1:]
         self._obs_spec = {}
-        self._obs_spec["pixels"] = specs.BoundedArray(
-            shape=np.concatenate(
-                [[pixels_shape[2] * num_frames], pixels_shape[:2]], axis=0
-            ),
-            dtype=np.uint8,
-            minimum=0,
-            maximum=255,
-            name="observation",
-        )
-        self._obs_spec["features"] = env.observation_spec()["features"]
+        self._obs_spec["features"] = self._env.observation_spec()["features"]
+        self._obs_spec["proprioceptive"] = self._env.observation_spec()[
+            "proprioceptive"
+        ]
+        for key in self.pixel_keys:
+            self._obs_spec[key] = specs.BoundedArray(
+                shape=np.concatenate(
+                    [[pixels_shape[2] * num_frames], pixels_shape[:2]], axis=0
+                ),
+                dtype=np.uint8,
+                minimum=0,
+                maximum=255,
+                name=key,
+            )
 
     def _transform_observation(self, time_step):
-        assert len(self._frames) == self._num_frames
+        for key in self.pixel_keys:
+            assert len(self._frames[key]) == self._num_frames
         obs = {}
         obs["features"] = time_step.observation["features"]
-        obs["pixels"] = np.concatenate(list(self._frames), axis=0)
+        for key in self.pixel_keys:
+            obs[key] = np.concatenate(list(self._frames[key]), axis=0)
+        obs["proprioceptive"] = time_step.observation["proprioceptive"]
         obs["task_emb"] = time_step.observation["task_emb"]
         obs["goal_achieved"] = time_step.observation["goal_achieved"]
-        obs["depth"] = time_step.observation["depth"]
         return time_step._replace(observation=obs)
 
     def _extract_pixels(self, time_step):
-        pixels = time_step.observation["pixels"]
-        # remove batch dim
-        if len(pixels.shape) == 4:
-            pixels = pixels[0]
-        return pixels.transpose(2, 0, 1).copy()
+        pixels = {}
+        for key in self.pixel_keys:
+            pixels[key] = time_step.observation[key]
+            if len(pixels[key].shape) == 4:
+                pixels[key] = pixels[key][0]
+            pixels[key] = pixels[key].transpose(2, 0, 1)
+        return pixels
 
-    def reset(self):
-        time_step = self._env.reset()
+    def reset(self, **kwargs):
+        time_step = self._env.reset(**kwargs)
         pixels = self._extract_pixels(time_step)
-        for _ in range(self._num_frames):
-            self._frames.append(pixels)
+        for key in self.pixel_keys:
+            for _ in range(self._num_frames):
+                self._frames[key].append(pixels[key])
         return self._transform_observation(time_step)
 
     def step(self, action):
         time_step = self._env.step(action)
         pixels = self._extract_pixels(time_step)
-        self._frames.append(pixels)
+        for key in self.pixel_keys:
+            self._frames[key].append(pixels[key])
         return self._transform_observation(time_step)
 
     def observation_spec(self):
@@ -272,27 +268,17 @@ class ActionDTypeWrapper(dm_env.Environment):
         self._discount = 1.0
 
         # Action spec
-        wrapped_action_spec = env.action_space
-        if not hasattr(wrapped_action_spec, "minimum"):
-            wrapped_action_spec.minimum = -np.ones(wrapped_action_spec.shape)
-        if not hasattr(wrapped_action_spec, "maximum"):
-            wrapped_action_spec.maximum = np.ones(wrapped_action_spec.shape)
-        self._action_spec = specs.BoundedArray(
-            wrapped_action_spec.shape,
-            np.float32,
-            wrapped_action_spec.minimum,
-            wrapped_action_spec.maximum,
-            "action",
+        wrapped_action_spec = env.action_spec()
+        self._action_spec = specs.Array(
+            shape=wrapped_action_spec.shape, dtype=dtype, name="action"
         )
-        # Observation spec
-        self._obs_spec = env.observation_spec()
 
     def step(self, action):
-        action = action.astype(self._env.action_space.dtype)
+        action = action.astype(self._env.action_spec().dtype)
         # Make time step for action space
         observation, reward, done, info = self._env.step(action)
-        reward = reward + 1
         step_type = StepType.LAST if done else StepType.MID
+
         return TimeStep(
             step_type=step_type,
             reward=reward,
@@ -301,13 +287,13 @@ class ActionDTypeWrapper(dm_env.Environment):
         )
 
     def observation_spec(self):
-        return self._obs_spec
+        return self._env.observation_spec()
 
     def action_spec(self):
         return self._action_spec
 
-    def reset(self):
-        obs = self._env.reset()
+    def reset(self, **kwargs):
+        obs = self._env.reset(**kwargs)
         return TimeStep(
             step_type=StepType.FIRST, reward=0, discount=self._discount, observation=obs
         )
@@ -316,12 +302,32 @@ class ActionDTypeWrapper(dm_env.Environment):
         return getattr(self._env, name)
 
 
+class ExtendedTimeStep(NamedTuple):
+    step_type: Any
+    reward: Any
+    discount: Any
+    observation: Any
+    action: Any
+
+    def first(self):
+        return self.step_type == StepType.FIRST
+
+    def mid(self):
+        return self.step_type == StepType.MID
+
+    def last(self):
+        return self.step_type == StepType.LAST
+
+    def __getitem__(self, attr):
+        return getattr(self, attr)
+
+
 class ExtendedTimeStepWrapper(dm_env.Environment):
     def __init__(self, env):
         self._env = env
 
-    def reset(self):
-        time_step = self._env.reset()
+    def reset(self, **kwargs):
+        time_step = self._env.reset(**kwargs)
         return self._augment_time_step(time_step)
 
     def step(self, action):
@@ -372,30 +378,36 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 def make(
     frame_stack,
     action_repeat,
+    seed,
     height,
     width,
     max_episode_len,
     max_state_dim,
-    depth_keys,
-    mujoco_env
+    use_egocentric,
+    task_description,
+    pixel_keys,
+    eval,  # True means use_robot=True
 ):
 
-    #TODO: SET ENV TO GYM ENVIRONMENT HERE
-    env = None
+    camera_names = ["front_left", "front_right", "back_left", "back_right"]
+    include_depth = False
+    training = not eval
 
-    # add wrappers
+    env = UR5Env(camera_names=camera_names, include_depth=include_depth, training=training)
+    env.seed(seed)
+
+    # apply wrappers
     env = RGBArrayAsObservationWrapper(
         env,
-        width=width,
-        height=height,
-        max_path_length=max_episode_len,
+        max_episode_len=max_episode_len,
         max_state_dim=max_state_dim,
-        depth_keys=depth_keys,
-        mujoco_env=mujoco_env
+        task_description=task_description,
+        pixel_keys=pixel_keys,
+        use_robot=eval,
     )
     env = ActionDTypeWrapper(env, np.float32)
     env = ActionRepeatWrapper(env, action_repeat)
     env = FrameStackWrapper(env, frame_stack)
     env = ExtendedTimeStepWrapper(env)
 
-    return [env], "gym environment"
+    return [env], [task_description]

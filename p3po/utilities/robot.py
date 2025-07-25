@@ -4,8 +4,8 @@ import rtde_control
 import rtde_receive
 import numpy as np
 
-from utils.robot_gripper import RobotiqGripper
-from utils.constants import home_j
+from .robot_gripper import RobotiqGripper
+from .constants import home_j
 
 default_home_joint_pose = [
     -5.025327865277426,
@@ -58,7 +58,7 @@ class Robot:
                 self.set_tcp_z_offset(self.tcp_offset_z)
 
                 print(f"TCP offset set to {self.tcp_offset_z}. This is based on the z offset of the gripper. Please check if this is correct.")
-    
+
     def set_tcp_z_offset(self, z_offset):
         current_offset = self.rtde_c.getTCPOffset()
         current_offset[2] = z_offset
