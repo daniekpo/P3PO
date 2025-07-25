@@ -1,0 +1,6 @@
+defaults:
+  - _self_
+
+suite: ur5e
+tasks:
+  - put_in_chest

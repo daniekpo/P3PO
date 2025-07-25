@@ -1,0 +1,34 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Train Script",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p3po/train.py",
+            "console": "integratedTerminal",
+            "env": {
+                "MKL_SERVICE_FORCE_INTEL": "1",
+                "MUJOCO_GL": "egl",
+                "TOKENIZERS_PARALLELISM": "false",
+                "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
+            },
+            "args": "agent=baku suite=metaworld dataloader=p3po_metaworld suite.hidden_dim=256 use_proprio=false suite.task.scenes='[assembly]' eval=true save_train_video=true",
+            "cwd": "${workspaceFolder}/p3po",
+            "justMyCode": true
+        },
+        {
+            "name": "Generate points",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p3po/data_generation/generate_points.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
+            },
+            "args": "",
+            "cwd": "${workspaceFolder}/p3po/data_generation",
+            "justMyCode": true
+        }
+    ]
+}

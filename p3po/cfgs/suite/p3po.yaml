@@ -2,9 +2,9 @@ defaults:
   - _self_
   - task: p3po
 
-root_dir: /path/to/root/directory
+root_dir: /scratch/repos/P3PO/
 
-task_name: ""
+task_name: "put_in_chest"
 device: "cuda"
 
 width: -1
