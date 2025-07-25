@@ -24,6 +24,8 @@ class P3POWrapper(dm_env.Environment):
             maximum=np.inf,
             name="graph",
         )
+        #  TODO: Remove this
+        print("Please remove this print statement")
 
     def reset(self, **kwargs):
         observation = self._env.reset(**kwargs)

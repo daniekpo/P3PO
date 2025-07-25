@@ -553,14 +553,14 @@ class BCAgent:
                 to_append = self.test_aug(obs[key].transpose(1, 2, 0)).numpy()
             else:
                 to_append = obs[key]
-                
+
             self.observation_buffer[key].append(to_append)
             to_input = torch.as_tensor(
                 np.array(self.observation_buffer[key]), device=self.device
             ).float()
             if self.obs_type == "pixels":
                 to_input = self.customAug(to_input / 255.0) if self.norm else to_input
-    
+
             # encoder
             lang = lang_features if self.film else None
             encoder_output = (
@@ -694,11 +694,17 @@ class BCAgent:
             # encode
             lang = lang_features if self.film else None
             if self.train_encoder:
-                encoder_output = (
-                    self.encoder[key](to_input, lang=lang)
-                    if self.separate_encoders
-                    else self.encoder(to_input, lang=lang)
-                )
+                if self.separate_encoders:
+                    encoder = self.encoder[key]
+                    encoder_output = encoder(to_input, lang=lang)
+                else:
+                    encoder_output = self.encoder(to_input, lang=lang)
+
+                # encoder_output = (
+                #     self.encoder[key](to_input, lang=lang)
+                #     if self.separate_encoders
+                #     else self.encoder(to_input, lang=lang)
+                # )
             else:
                 with torch.no_grad():
                     encoder_output = (

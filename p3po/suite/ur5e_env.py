@@ -25,7 +25,7 @@ class UR5Env(gym.Env):
     """
     metadata = {"render_modes": ["human"], "render_fps": 10}
 
-    def __init__(self, camera_names=None, include_depth=False, host='169.254.129.1', training=True):
+    def __init__(self, camera_names=None, include_depth=True, host='169.254.129.1', training=True, primary_camera_name=None):
         super().__init__()
         self.host = host
         self.robot = None
@@ -33,6 +33,7 @@ class UR5Env(gym.Env):
         self.camera_manager = CameraManager(camera_names=self.camera_names)
         self.include_depth = include_depth
         self.training = training
+        self.primary_camera_name = primary_camera_name or camera_names[0]
 
         # Action: [x, y, z, rx, ry, rz, gripper]
         # Use conservative bounds for translation/rotation, gripper in [0, 1]
@@ -54,6 +55,7 @@ class UR5Env(gym.Env):
                 name: spaces.Box(0, 255, shape=(480, 640, 3), dtype=np.uint8) for name in self.camera_names}),
             'joints': spaces.Box(-np.pi, np.pi, shape=(6,), dtype=np.float32),
             'pose': spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
+            "features": spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
         }
 
         if self.include_depth:
@@ -100,24 +102,30 @@ class UR5Env(gym.Env):
 
     def _get_obs(self):
         data = self.camera_manager.get_data()
-        images = {name: data[name][0] for name in self.camera_names if name in data}
+        # images = {name: data[name][0] for name in self.camera_names if name in data}
+
         obs = {
-            'pixels': images,
+            'pixels': data[self.primary_camera_name][0],
             'joints': np.array(self.robot.getj(), dtype=np.float32),
             'pose': np.array(self.robot.getl(), dtype=np.float32),
+            'features': np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         }
         if self.include_depth:
-            depths = {name: data[name][1] for name in self.camera_names if name in data}
-            obs['depths'] = depths
+            # depths = {name: data[name][1] for name in self.camera_names if name in data}
+            depth_scale = 0.001 # mm to m
+            depth = data[self.primary_camera_name][1] * depth_scale
+            obs['depths'] = depth
         return obs
 
     def render(self, mode="human"):
-        # Simple render: show first camera's RGB image
-        import cv2
         obs = self._get_obs()
-        img = next(iter(obs['pixels'].values()))
-        cv2.imshow("UR5Env Camera", img)
-        cv2.waitKey(1)
+        img = obs['pixels']
+        return img
+
+    def get_depth(self):
+        obs = self._get_obs()
+        depth = obs['depths']
+        return depth
 
     def seed(self, seed=None):
         if seed is not None:

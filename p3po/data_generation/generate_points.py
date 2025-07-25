@@ -15,7 +15,7 @@ from pathlib import Path
 # TODO: Set if you want to read from a pickle or from mp4 files
 # If you are reading from a pickle please make sure that the images are RGB not BGR
 read_from_pickle = True
-pickle_path = "/scratch/repos/P3PO/expert_demos/xarm_env/xarm_test.pkl"
+pickle_path = "/scratch/repos/P3PO/expert_demos/xarm_env/put_in_chest.pkl"
 pickle_image_key = "pixels0"
 
 # TODO: If you want to use gt depth, set to True and set the key for the depth in the pickle
