@@ -3,8 +3,6 @@ from gymnasium import spaces
 import numpy as np
 import random
 
-from utilities.robot import Robot
-from utilities.camera_manager import CameraManager
 
 '''
 X: min: -0.2966571473135897 max: 0.49383734924956946
@@ -30,7 +28,7 @@ class UR5Env(gym.Env):
         self.host = host
         self.robot = None
         self.camera_names = camera_names
-        self.camera_manager = CameraManager(camera_names=self.camera_names)
+        self.camera_manager = None
         self.include_depth = include_depth
         self.training = training
         self.primary_camera_name = primary_camera_name or camera_names[0]
@@ -63,14 +61,18 @@ class UR5Env(gym.Env):
         self.observation_space = spaces.Dict(obs_spaces)
 
         # We don't need this for training since training is done offline
-        # if not self.training:
-        #     self.__init_robot__()
-        self.__init_robot__(training=self.training)
+        if not self.training:
+            self.__init_robot__(training=self.training)
+            self.__init_camera__()
+
+    def __init_camera__(self):
+        from utilities.camera_manager import CameraManager
+        self.camera_manager = CameraManager(camera_names=self.camera_names)
 
     def __init_robot__(self, training):
+        from utilities.robot import Robot
         read_only = training
         self.robot = Robot(host=self.host, read_only=read_only)
-
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
@@ -101,19 +103,33 @@ class UR5Env(gym.Env):
         return obs, reward, terminated, truncated, info
 
     def _get_obs(self):
-        data = self.camera_manager.get_data()
-        # images = {name: data[name][0] for name in self.camera_names if name in data}
+        cam_data = None
+        robot_j = None
+        robot_l = None
+
+        if self.training:
+            cam_data = {
+                self.primary_camera_name: (
+                    np.zeros((480, 640, 3), dtype=np.uint8),
+                    np.zeros((480, 640), dtype=np.uint16)),
+            }
+            robot_j = np.zeros((6,), dtype=np.float32)
+            robot_l = np.zeros((6,), dtype=np.float32)
+        else:
+            cam_data = self.camera_manager.get_data()
+            robot_j = np.array(self.robot.getj(), dtype=np.float32)
+            robot_l = np.array(self.robot.getl(), dtype=np.float32)
 
         obs = {
-            'pixels': data[self.primary_camera_name][0],
-            'joints': np.array(self.robot.getj(), dtype=np.float32),
-            'pose': np.array(self.robot.getl(), dtype=np.float32),
+            'pixels': cam_data[self.primary_camera_name][0],
+            'joints': robot_j,
+            'pose': robot_l,
             'features': np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         }
         if self.include_depth:
             # depths = {name: data[name][1] for name in self.camera_names if name in data}
             depth_scale = 0.001 # mm to m
-            depth = data[self.primary_camera_name][1] * depth_scale
+            depth = cam_data[self.primary_camera_name][1] * depth_scale
             obs['depths'] = depth
         return obs
 

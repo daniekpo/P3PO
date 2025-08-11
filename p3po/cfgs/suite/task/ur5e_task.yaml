@@ -3,4 +3,4 @@ defaults:
 
 suite: ur5e
 tasks:
-  - put_in_chest
+  - put_green_block_in_chest

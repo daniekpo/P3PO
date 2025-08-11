@@ -6,7 +6,7 @@ defaults:
   - override hydra/launcher: submitit_local
 
 # Root Dir
-root_dir: /scratch/repos/P3PO/
+root_dir: /fs/vulcan-projects/verigraph_3d/repos/P3PO/
 use_p3po: True
 
 # misc
