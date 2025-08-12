@@ -52,3 +52,4 @@ task_make_fn:
   max_state_dim: ??? # to be specified later
   depth_keys: ${suite.depth_keys}
   mujoco_env: False
+  training: ${training}

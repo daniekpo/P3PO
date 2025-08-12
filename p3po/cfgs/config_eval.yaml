@@ -1,13 +1,15 @@
 defaults:
   - _self_
   - agent: baku
-  - suite: libero
-  - dataloader: libero
+  - suite: ur5e_suite
+  - dataloader: p3po_xarm
   - override hydra/launcher: submitit_local
 
 # Root Dir
-root_dir: /path/to/root/directory
+# root_dir: /fs/vulcan-projects/verigraph_3d/repos/P3PO/
+root_dir: /scratch/repos/P3PO/
 use_p3po: True
+training: False
 
 # misc
 seed: 2
@@ -41,7 +43,7 @@ num_queries: 10
 expert_dataset: ${dataloader.bc_dataset}
 
 # Load weights
-bc_weight: path/to/weight
+bc_weight: '${root_dir}/checkpoints/30_demos_put_in_chest_600000.pt'
 
 hydra:
   run:

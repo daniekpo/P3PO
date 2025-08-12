@@ -2,7 +2,8 @@ defaults:
   - _self_
   - task: p3po
 
-root_dir: /fs/vulcan-projects/verigraph_3d/repos/P3PO/
+# root_dir: /fs/vulcan-projects/verigraph_3d/repos/P3PO/
+root_dir: /scratch/repos/P3PO/
 
 task_name: "put_green_block_in_chest"
 device: "cuda"

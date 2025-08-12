@@ -386,13 +386,13 @@ def make(
     max_episode_len,
     max_state_dim,
     depth_keys,
-    mujoco_env
+    mujoco_env,
+    training,
 ):
 
     #TODO: SET ENV TO GYM ENVIRONMENT HERE
     camera_names = ["front_left", "front_right"]
     include_depth = True
-    training = True
     primary_camera = "front_left"
 
     env = UR5Env(camera_names=camera_names, include_depth=include_depth, training=training, primary_camera_name=primary_camera)
