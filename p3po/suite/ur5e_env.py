@@ -71,7 +71,7 @@ class UR5Env(gym.Env):
         self.camera_manager = CameraManager(camera_names=self.camera_names)
 
     def __init_robot__(self, training):
-        from utilities.robot import Robot
+        from rvkit.control import Robot
         read_only = training
         self.robot = Robot(host=self.host, read_only=read_only)
 

@@ -7,7 +7,15 @@ defaults:
 
 # Root Dir
 # root_dir: /fs/vulcan-projects/verigraph_3d/repos/P3PO/
-root_dir: /scratch/repos/P3PO/
+workspace_dir: /scratch
+
+projects_root: ${workspace_dir}/repos/
+models_root: ${workspace_dir}/models/
+data_root: ${workspace_dir}/data/open_teach/
+
+# Root Dir
+root_dir: ${projects_root}/P3PO/
+
 use_p3po: True
 training: False
 
