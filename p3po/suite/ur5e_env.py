@@ -33,6 +33,7 @@ class UR5Env(gym.Env):
         self.include_depth = include_depth
         self.training = training
         self.primary_camera_name = primary_camera_name or camera_names[0]
+        self.robot_home_joints = [-4.710016, -1.570014,  1.56999 , -1.570003,  4.710003, -0.000031]
 
         # Action: [x, y, z, rx, ry, rz, gripper]
         # Use conservative bounds for translation/rotation, gripper in [0, 1]
@@ -74,12 +75,15 @@ class UR5Env(gym.Env):
         from rvkit.control import Robot
         read_only = training
         self.robot = Robot(host=self.host, read_only=read_only)
+        if not training:
+            self.robot.movej(self.robot_home_joints)
+            self.robot.open_gripper()
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
 
         if not self.training:
-            self.robot.go_home()
+            self.robot.movej(self.robot_home_joints)
             self.robot.open_gripper()
 
         obs = self._get_obs()
