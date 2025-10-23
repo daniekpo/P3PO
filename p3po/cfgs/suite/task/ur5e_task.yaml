@@ -3,4 +3,16 @@ defaults:
 
 suite: ur5e
 tasks:
+  - clean_with_cleaner
+  - drive_toy_car
+  - put_orange_in_plate
   - put_green_block_in_chest
+  - stir_with_green_spatula
+  - remove_green_block_from_chest
+  - pour_with_cup_2
+  - move_tennisball_with_cup
+  - pour_with_cup
+  - scoop_with_orange_spoon
+  - put_strawberry_in_plate
+  - pick_up_plate
+  - put_pear_in_plate

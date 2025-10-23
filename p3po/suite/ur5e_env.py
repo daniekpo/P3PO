@@ -3,6 +3,7 @@ from gymnasium import spaces
 import numpy as np
 import random
 
+from rvkit.utils.transformations import delta_pose_to_pose
 
 '''
 X: min: -0.2966571473135897 max: 0.49383734924956946
@@ -85,9 +86,14 @@ class UR5Env(gym.Env):
         return obs
 
     def step(self, action):
-        pose = np.array(action[:6], dtype=np.float32)
+        delta_pose = np.array(action[:6], dtype=np.float32)
         gripper = action[6]
-        self.robot.movel(pose, acc=0.1, vel=0.1)
+        # self.robot.movel(pose, acc=0.1, vel=0.1)
+        # print(f"If enabled, the robot would move to {delta_pose}")
+
+        current_pose = np.array(self.robot.getl())
+        next_pose = delta_pose_to_pose(delta_pose, current_pose)
+        self.robot.movel(next_pose, acc=0.1, vel=0.1)
 
         # Gripper control
         if gripper >= 0.5:
@@ -99,7 +105,9 @@ class UR5Env(gym.Env):
         reward = 0.0
         terminated = False
         truncated = False
-        info = {}
+        info = {
+            "success": True,
+        }
         return obs, reward, terminated, truncated, info
 
     def _get_obs(self):

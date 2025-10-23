@@ -15,6 +15,19 @@
             "justMyCode": true
         },
         {
+            "name": "Train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p3po/train.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
+            },
+            "args": "agent=baku suite=ur5e_suite dataloader=p3po_xarm suite.hidden_dim=256 use_proprio=false",
+            "cwd": "${workspaceFolder}/p3po",
+            "justMyCode": true
+        },
+        {
             "name": "Eval: ur5e",
             "type": "debugpy",
             "request": "launch",
@@ -23,7 +36,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
             },
-            "args": "agent=baku suite=ur5e_suite dataloader=p3po_xarm 'suite.task.tasks=[put_green_block_in_chest]' suite.hidden_dim=256 use_proprio=false",
+            "args": "agent=baku suite=ur5e_suite dataloader=p3po_xarm 'suite.task.tasks=[drive_toy_car]' suite.hidden_dim=256 use_proprio=false",
             "cwd": "${workspaceFolder}/p3po",
             "justMyCode": true
         },
@@ -47,7 +60,7 @@
             "name": "Generate points",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/p3po/data_generation/generate_points.py",
+            "program": "generate_points.py",
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"

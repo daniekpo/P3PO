@@ -138,8 +138,9 @@ class BCDataset(IterableDataset):
             graph_data = pkl.load(open(str(self._graph_paths[_graph_idx]), "rb"))['episode_list']
 
             for i, episode in enumerate(graph_data):
-                data['observations'][i]['graph'] = episode
-                
+                demo_key = f"demo_{i}"
+                data['observations'][demo_key]['graph'] = episode
+
             observations = (
                 data["observations"]
             )
@@ -152,10 +153,11 @@ class BCDataset(IterableDataset):
             for i in range(min(num_demos_per_task, len(observations))):
                 # compute actions
                 # absolute actions
+                demo_key = f"demo_{i}"
                 actions = np.concatenate(
                     [
-                        observations[i]["cartesian_states"],
-                        observations[i]["gripper_states"][:, None],
+                        observations[demo_key]["cartesian_states"],
+                        observations[demo_key]["gripper_states"][:, None],
                     ],
                     axis=1,
                 )
@@ -163,13 +165,13 @@ class BCDataset(IterableDataset):
                     continue
                 # skip first n
                 if skip_first_n is not None:
-                    for key in observations[i].keys():
-                        observations[i][key] = observations[i][key][skip_first_n:]
+                    for key in observations[demo_key].keys():
+                        observations[demo_key][key] = observations[demo_key][key][skip_first_n:]
                     actions = actions[skip_first_n:]
                 # subsample
                 if subsample is not None:
-                    for key in observations[i].keys():
-                        observations[i][key] = observations[i][key][::subsample]
+                    for key in observations[demo_key].keys():
+                        observations[demo_key][key] = observations[demo_key][key][::subsample]
                     actions = actions[::subsample]
                 # action after steps
                 if relative_actions:
@@ -177,15 +179,15 @@ class BCDataset(IterableDataset):
                 else:
                     actions = actions[self._action_after_steps :]
                 # Convert cartesian states to quaternion orientation
-                observations[i]["cartesian_states"] = get_quaternion_orientation(
-                    observations[i]["cartesian_states"]
+                observations[demo_key]["cartesian_states"] = get_quaternion_orientation(
+                    observations[demo_key]["cartesian_states"]
                 )
                 # Repeat last dimension of each observation for history_len times
-                for key in observations[i].keys():
-                    observations[i][key] = np.concatenate(
+                for key in observations[demo_key].keys():
+                    observations[demo_key][key] = np.concatenate(
                         [
-                            observations[i][key],
-                            [observations[i][key][-1]] * self._history_len,
+                            observations[demo_key][key],
+                            [observations[demo_key][key][-1]] * self._history_len,
                         ],
                         axis=0,
                     )
@@ -207,7 +209,7 @@ class BCDataset(IterableDataset):
 
                 # store
                 episode = dict(
-                    observation=observations[i],
+                    observation=observations[demo_key],
                     action=actions,
                     task_emb=task_emb,
                 )
@@ -215,14 +217,14 @@ class BCDataset(IterableDataset):
                 self._max_episode_len = max(
                     self._max_episode_len,
                     (
-                        len(observations[i])
-                        if not isinstance(observations[i], dict)
-                        else len(observations[i][self._keys[0]])
+                        len(observations[demo_key])
+                        if not isinstance(observations[demo_key], dict)
+                        else len(observations[demo_key][self._keys[0]])
                     ),
                 )
                 self._max_state_dim = 7
                 self._num_samples += (
-                    len(observations[i][self._keys[0]])
+                    len(observations[demo_key][self._keys[0]])
                 )
 
                 # max, min action
