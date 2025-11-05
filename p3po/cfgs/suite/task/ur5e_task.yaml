@@ -1,0 +1,26 @@
+defaults:
+  - _self_
+
+suite: ur5e
+tasks:
+  - put_tennis_ball_in_plate_1_10
+  - put_tennis_ball_in_plate_11_20
+  - put_tennis_ball_in_plate_21_30
+  - put_tennis_ball_in_plate_31_40
+  - put_tennis_ball_in_plate_41_50
+  - put_tennis_ball_in_plate_51_60
+  - put_tennis_ball_in_plate_61_70
+  - put_tennis_ball_in_plate_71_80
+  - put_tennis_ball_in_plate_81_90
+  - put_tennis_ball_in_plate_91_100 # training up to here
+  - put_tennis_ball_in_plate_101_110
+  - put_tennis_ball_in_plate_111_120
+  - put_tennis_ball_in_plate_121_130
+  - put_tennis_ball_in_plate_131_140
+  - put_tennis_ball_in_plate_141_150 # training up to here
+  - put_tennis_ball_in_plate_151_160 # trained up to here
+  - put_tennis_ball_in_plate_161_170 # trained up to here
+  - put_tennis_ball_in_plate_171_180
+  # - put_tennis_ball_in_plate_181_190 # bad
+  - put_tennis_ball_in_plate_191_200
+  - put_tennis_ball_in_plate_201_210

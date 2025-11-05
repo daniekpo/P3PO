@@ -4,7 +4,7 @@ from typing import Any, NamedTuple
 import gym
 from gym import spaces
 
-import xarm_env
+# import xarm_env
 import dm_env
 import numpy as np
 from dm_env import StepType, specs, TimeStep

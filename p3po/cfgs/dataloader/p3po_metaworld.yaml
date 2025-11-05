@@ -1,7 +1,7 @@
 bc_dataset:
   _target_: read_data.p3po_metaworld.BCDataset
-  path: '${root_dir}/expert_demos'
-  processed_path: '${root_dir}/processed_data'
+  path: "${root_dir}/expert_demos/metaworld"
+  processed_path: "${root_dir}/processed_data"
   suite: ${suite.task.suite}
   scenes: ${suite.task.scenes}
   tasks: ${suite.task.tasks}

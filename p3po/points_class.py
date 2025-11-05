@@ -5,8 +5,11 @@ from PIL import Image
 import torch
 from torchvision import transforms
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+plt.ioff()
 
 from utilities.correspondence import Correspondence
 from utilities.depth import Depth
@@ -23,22 +26,22 @@ class PointsClass():
 
         task_name : str
             The name of the task done by the robot.
-            
+
         device : str
             The device to use for computation, either 'cpu' or 'cuda' (for GPU acceleration).
-            
+
         width : int
             The width that should be used in the correspondence model.
-            
+
         height : int
             The height that should be used in the correspondence model.
 
         image_size_multiplier : int
             The size multiplier for the image in the correspondence model.
-            
+
         ensemble_size : int
             The size of the ensemble for the DIFT model.
-            
+
         dift_layer : int
             The specific layer of the DIFT model to use for feature extraction.
 
@@ -76,7 +79,7 @@ class PointsClass():
         self.cotracker = CoTrackerOnlinePredictor(checkpoint=root_dir + "/co-tracker/checkpoints/scaled_online.pth", window_len=16).to(device)
 
 
-        self.transform = transforms.Compose([ 
+        self.transform = transforms.Compose([
                             transforms.PILToTensor()])
         self.image_list = torch.tensor([]).to(device)
         self.depth = np.array([])
@@ -171,9 +174,9 @@ class PointsClass():
         """
 
         if is_first_step:
-            self.cotracker(video_chunk=self.image_list[0, 0].unsqueeze(0).unsqueeze(0), 
-                           is_first_step=True, 
-                           add_support_grid=True, 
+            self.cotracker(video_chunk=self.image_list[0, 0].unsqueeze(0).unsqueeze(0),
+                           is_first_step=True,
+                           add_support_grid=True,
                            queries=self.semantic_similar_points[None].to(self.device))
             self.tracks = self.semantic_similar_points
         else:

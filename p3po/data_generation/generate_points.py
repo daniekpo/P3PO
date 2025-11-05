@@ -1,6 +1,8 @@
 import sys
 sys.path.append("../")
+import time
 
+import numpy as np
 import pickle
 import cv2
 import yaml
@@ -10,18 +12,20 @@ import torch
 
 from points_class import PointsClass
 from pathlib import Path
+from tqdm import tqdm
 
 # TODO: Set if you want to read from a pickle or from mp4 files
 # If you are reading from a pickle please make sure that the images are RGB not BGR
 read_from_pickle = True
-pickle_path = "/path/to/pickle.pkl"
-pickle_image_key = "pixels"
+# pickle_path = "/path/to/pickle.pkl"
+
+pickle_image_key = "pixels0"
 
 # TODO: If you want to use gt depth, set to True and set the key for the depth in the pickle
 # To use gt depth, the depth must be in the same pickle as the images
 # We assume the input depth is in the form width x height
 use_gt_depth = True
-gt_depth_key = "depth"
+gt_depth_key = "depth0"
 
 # Otherwise we need to add videos to a list
 # TODO: A list of videos to read from if you are not loading data from a pickle
@@ -30,7 +34,7 @@ video_paths = []
 # TODO: Set to true if you want to save a video of the points being tracked
 write_videos = True
 
-# TODO:  If you want to subsample the frames, set the subsample rate here. Note you will have to update your dataset to 
+# TODO:  If you want to subsample the frames, set the subsample rate here. Note you will have to update your dataset to
 # reflect the subsampling rate, we do not do this for you.
 subsample = 1
 
@@ -39,6 +43,14 @@ with open("../cfgs/suite/p3po.yaml") as stream:
         cfg = yaml.safe_load(stream)
     except yaml.YAMLError as exc:
         print(exc)
+
+if len(sys.argv) > 1:
+    cfg["task_name"] = sys.argv[1]
+
+task_name = cfg["task_name"]
+
+print(f"Processing task: {task_name}")
+pickle_path = f"/scratch/data/open_teach/processed_data_pkl_aa/{task_name}.pkl"
 
 if read_from_pickle:
     examples = pickle.load(open(pickle_path, "rb"))
@@ -54,8 +66,9 @@ points_class = PointsClass(**cfg)
 episode_list = []
 
 mark_every = 8
-for i in range(num_demos):
+for i in tqdm(range(num_demos)):
     # Read the frames from the pickle or video, these frames must be in RGB so if reading from a pickle make sure to convert if necessary
+    start_time = time.time()
     if read_from_pickle:
         frames = examples['observations'][i][pickle_image_key][0::subsample]
         if use_gt_depth:
@@ -93,7 +106,9 @@ for i in range(num_demos):
         image = points_class.plot_image()
         video_list.append(image[0])
 
+    frame_times = []
     for idx,image in enumerate(frames[1:]):
+        frame_start_time = time.time()
         points_class.add_to_image_list(image)
         if use_gt_depth:
             points_class.set_depth(depth[idx + 1])
@@ -118,12 +133,19 @@ for i in range(num_demos):
                 images = points_class.plot_image(last_n_frames=mark_every)
                 for j in range(mark_every - to_add):
                     video_list.append(images[j])
+            frame_end_time = time.time()
+            elapsed_time = frame_end_time - frame_start_time
+            frame_times.append(elapsed_time)
 
     if write_videos:
         imageio.mimsave(f"videos/{cfg['task_name']}_%d.mp4" % i, video_list, fps=30)
-    
+
     episode_list.append(torch.stack(points_list))
     points_class.reset_episode()
+    end_time = time.time()
+    print(f"Processing demo {i} took {end_time-start_time:.4f} seconds")
+    mean_frame_time = np.array(frame_times).mean()
+    print(f"Mean frame time: {mean_frame_time}")
 
 final_graph = {}
 final_graph['episode_list'] = episode_list

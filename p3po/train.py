@@ -2,6 +2,8 @@
 
 import warnings
 import os
+import time
+from datetime import datetime
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
@@ -12,6 +14,7 @@ import hydra
 import torch
 import cv2
 import numpy as np
+import wandb
 
 import utils
 from logger import Logger
@@ -57,7 +60,8 @@ class WorkspaceIL:
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
         # create envs
         self.cfg.suite.task_make_fn.max_episode_len = (
-            self.expert_replay_loader.dataset._max_episode_len * self.cfg.suite.action_repeat
+            self.expert_replay_loader.dataset._max_episode_len
+            * self.cfg.suite.action_repeat
         )
         self.cfg.suite.task_make_fn.max_state_dim = (
             self.expert_replay_loader.dataset._max_state_dim
@@ -79,27 +83,42 @@ class WorkspaceIL:
                 except yaml.YAMLError as exc:
                     print(exc)
 
+            self.run_name = datetime.now().strftime("%m-%d-%H")
+            self.wandb_loger = wandb.init(
+                name=self.run_name,
+                entity="daniekpo",
+                project="p3po",
+                config=dict(cfg),
+            )
+
             points_class = PointsClass(**points_cfg)
             for i in range(len(self.env)):
-                self.env[i] = P3POWrapper(self.env[i], self.cfg.suite.pixel_keys, self.cfg.depth_keys, self.cfg.training_keys, points_class)
-
+                self.env[i] = P3POWrapper(
+                    self.env[i],
+                    self.cfg.suite.pixel_keys,
+                    self.cfg.depth_keys,
+                    self.cfg.training_keys,
+                    points_class,
+                )
 
         # create agent
-        if self.cfg.dataloader.bc_dataset._target_ == "read_data.p3po_general.BCDataset":
+        if (
+            self.cfg.dataloader.bc_dataset._target_
+            == "read_data.p3po_general.BCDataset"
+        ):
             from dm_env import specs
+
             action_spec = specs.BoundedArray(
-                            (self.expert_replay_loader.dataset._max_action_dim,),
-                            np.float32,
-                            self.stats["actions"]["min"],
-                            self.stats["actions"]["max"],
-                            "action",
-                        )
+                (self.expert_replay_loader.dataset._max_action_dim,),
+                np.float32,
+                self.stats["actions"]["min"],
+                self.stats["actions"]["max"],
+                "action",
+            )
         else:
             action_spec = self.env[0].action_spec()
 
-        self.agent = make_agent(
-            self.env[0].observation_spec(), action_spec, cfg
-        )
+        self.agent = make_agent(self.env[0].observation_spec(), action_spec, cfg)
 
         self.envs_till_idx = self.expert_replay_loader.dataset.envs_till_idx
 
@@ -234,6 +253,15 @@ class WorkspaceIL:
                     log("total_time", total_time)
                     log("actor_loss", metrics["actor_loss"])
                     log("step", self.global_step)
+
+                if self.wandb_loger:
+                    self.wandb_loger.log(
+                        {
+                            "total_time": total_time,
+                            "actor_loss": metrics["actor_loss"],
+                            "step": self.global_step,
+                        }
+                    )
 
             # save snapshot
             if save_every_step(self.global_step):

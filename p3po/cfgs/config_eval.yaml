@@ -6,8 +6,10 @@ defaults:
   - override hydra/launcher: submitit_local
 
 # Root Dir
-root_dir: /path/to/root/directory
+root_dir: /scratch/repos/ref_P3PO
+data_dir: /scratch/data/open_teach/
 use_p3po: True
+training: False
 
 # misc
 seed: 2
@@ -41,7 +43,7 @@ num_queries: 10
 expert_dataset: ${dataloader.bc_dataset}
 
 # Load weights
-bc_weight: path/to/weight
+bc_weight: /scratch/repos/ref_P3PO/p3po/exp_local/2025.11.03_train/deterministic/234319_hidden_dim_256/snapshot/600000.pt
 
 hydra:
   run:
