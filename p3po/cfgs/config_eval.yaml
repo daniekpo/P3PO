@@ -51,7 +51,7 @@ num_queries: 10
 expert_dataset: ${dataloader.bc_dataset}
 
 # Load weights
-bc_weight: '${root_dir}/checkpoints/all_demos_10_22_train_600000.pt'
+bc_weight: '${root_dir}/checkpoints/oct_29_post_data_fix_all_demos.pt'
 
 hydra:
   run:
