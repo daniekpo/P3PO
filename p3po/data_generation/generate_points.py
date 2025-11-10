@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append("../")
 import time
 
@@ -14,18 +15,23 @@ from points_class import PointsClass
 from pathlib import Path
 from tqdm import tqdm
 
+DATA_ROOT = "/scratch/data/open_teach"
+CAM_IDX = 0
+
+
 # TODO: Set if you want to read from a pickle or from mp4 files
 # If you are reading from a pickle please make sure that the images are RGB not BGR
 read_from_pickle = True
 # pickle_path = "/path/to/pickle.pkl"
 
-pickle_image_key = "pixels0"
+pickle_image_key = f"pixels{CAM_IDX}"
 
 # TODO: If you want to use gt depth, set to True and set the key for the depth in the pickle
 # To use gt depth, the depth must be in the same pickle as the images
 # We assume the input depth is in the form width x height
 use_gt_depth = True
-gt_depth_key = "depth0"
+gt_depth_key = f"depth{CAM_IDX}"
+USE_DEMO_FILE = True
 
 # Otherwise we need to add videos to a list
 # TODO: A list of videos to read from if you are not loading data from a pickle
@@ -50,16 +56,18 @@ if len(sys.argv) > 1:
 task_name = cfg["task_name"]
 
 print(f"Processing task: {task_name}")
-pickle_path = f"/scratch/data/open_teach/processed_data_pkl_aa/{task_name}.pkl"
+pickle_path = f"/scratch/data/open_teach/processed_data_pkl/{task_name}.pkl"
 
 if read_from_pickle:
     examples = pickle.load(open(pickle_path, "rb"))
-    num_demos = len(examples['observations'])
+    num_demos = len(examples["observations"])
 else:
     num_demos = len(video_paths)
 
 if write_videos:
-    Path(f"{cfg['root_dir']}/p3po/data_generation/videos").mkdir(parents=True, exist_ok=True)
+    Path(f"{cfg['root_dir']}/p3po/data_generation/videos").mkdir(
+        parents=True, exist_ok=True
+    )
 
 # Initialize the PointsClass object
 points_class = PointsClass(**cfg)
@@ -70,9 +78,14 @@ for i in tqdm(range(num_demos)):
     # Read the frames from the pickle or video, these frames must be in RGB so if reading from a pickle make sure to convert if necessary
     start_time = time.time()
     if read_from_pickle:
-        frames = examples['observations'][i][pickle_image_key][0::subsample]
+        frames = examples["observations"][i][pickle_image_key][..., ::-1][0::subsample]
         if use_gt_depth:
-            depth = examples['observations'][i][gt_depth_key][0::subsample]
+            if USE_DEMO_FILE:
+                demo_dir = examples["observations"][i]["demo_dir"]
+                depth_npy_path = f"{DATA_ROOT}/processed_data/{task_name}/demonstrations/{demo_dir}/depth_{CAM_IDX}.npy"
+                depth = np.load(depth_npy_path)[0::subsample]
+            else:
+                depth = examples["observations"][i][gt_depth_key][0::subsample]
     else:
         frames = []
         video = cv2.VideoCapture(video_paths[i])
@@ -107,7 +120,7 @@ for i in tqdm(range(num_demos)):
         video_list.append(image[0])
 
     frame_times = []
-    for idx,image in enumerate(frames[1:]):
+    for idx, image in enumerate(frames[1:]):
         frame_start_time = time.time()
         points_class.add_to_image_list(image)
         if use_gt_depth:
@@ -143,19 +156,22 @@ for i in tqdm(range(num_demos)):
     episode_list.append(torch.stack(points_list))
     points_class.reset_episode()
     end_time = time.time()
-    print(f"Processing demo {i} took {end_time-start_time:.4f} seconds")
+    print(f"Processing demo {i} took {end_time - start_time:.4f} seconds")
     mean_frame_time = np.array(frame_times).mean()
     print(f"Mean frame time: {mean_frame_time}")
 
 final_graph = {}
-final_graph['episode_list'] = episode_list
-final_graph['subsample'] = subsample
-final_graph['pixel_key'] = pickle_image_key
-final_graph['use_gt_depth'] = use_gt_depth
-final_graph['gt_depth_key'] = gt_depth_key
-final_graph['pickle_path'] = pickle_path
-final_graph['video_paths'] = video_paths
-final_graph['cfg'] = cfg
+final_graph["episode_list"] = episode_list
+final_graph["subsample"] = subsample
+final_graph["pixel_key"] = pickle_image_key
+final_graph["use_gt_depth"] = use_gt_depth
+final_graph["gt_depth_key"] = gt_depth_key
+final_graph["pickle_path"] = pickle_path
+final_graph["video_paths"] = video_paths
+final_graph["cfg"] = cfg
 
 Path(f"{cfg['root_dir']}/processed_data/points").mkdir(parents=True, exist_ok=True)
-pickle.dump(final_graph, open(f"{cfg['root_dir']}/processed_data/points/{cfg['task_name']}.pkl", "wb"))
+pickle.dump(
+    final_graph,
+    open(f"{cfg['root_dir']}/processed_data/points/{cfg['task_name']}.pkl", "wb"),
+)

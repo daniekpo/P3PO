@@ -34,14 +34,14 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
     def __init__(
         self,
         env,
+        eval_task_name,
         width=84,
         height=84,
         max_path_length=125,
         max_state_dim=0,
         depth_keys=[],
-        mujoco_env=False,
     ):
-        self.name = "Gym Environment"
+        self.task_name = eval_task_name
 
         self._env = env
         self._width = width
@@ -49,7 +49,6 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
         self.max_path_length = max_path_length
         self.max_state_dim = max_state_dim
         self.depth_keys = depth_keys
-        self.mujoco_env = mujoco_env
 
         # dummy render to init opengl context
         dummy_obs = self.render()
@@ -59,7 +58,7 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
         self.action_space = self._env.action_space
 
         # task emb
-        self.task_emb = sentence_encoder.encode(self.name)
+        self.task_emb = sentence_encoder.encode(self.task_name)
 
         # Action spec
         wrapped_action_spec = self.action_space
@@ -139,25 +138,18 @@ class RGBArrayAsObservationWrapper(dm_env.Environment):
         width = self._width if width is None else width
         height = self._height if height is None else height
         # self._env.mujoco_renderer.viewer.make_context_current()
-        frame = self._env.render()[::-1, :]
-        frame = cv2.resize(frame, (width, height))
+        # frame = self._env.render()[::-1, :]
+        frame = self._env.render()
+        # frame = cv2.resize(frame, (width, height))
         return frame
 
     def get_depth(self, width=None, height=None):
         width = self._width if width is None else width
         height = self._height if height is None else height
-        if self.mujoco_env:
-            depth = self._env.mujoco_renderer.render("depth_array")[::-1, :]
 
-            extent = self._env.model.stat.extent
-            near = self._env.model.vis.map.znear * extent
-            far = self._env.model.vis.map.zfar * extent
-            depth = near / (1 - depth * (1 - near / far))
-            depth = depth * (depth < 10)
-        else:
-            depth = self._env.get_depth()
+        depth = self._env.get_depth()
 
-        depth = cv2.resize(depth, (width, height))
+        # depth = cv2.resize(depth, (width, height))
         return depth
 
     def __getattr__(self, name):
@@ -388,19 +380,21 @@ def make(
     max_episode_len,
     max_state_dim,
     depth_keys,
-    mujoco_env,
+    eval_task_name,
     training,
+    relative_actions,
 ):
     # TODO: SET ENV TO GYM ENVIRONMENT HERE
     camera_names = ["front_left", "front_right"]
     include_depth = True
-    primary_camera = "front_left"
+    primary_camera = "front_right"
 
     env = UR5Env(
         camera_names=camera_names,
         include_depth=include_depth,
         training=training,
         primary_camera_name=primary_camera,
+        relative_actions=relative_actions,
     )
 
     # add wrappers
@@ -411,7 +405,7 @@ def make(
         max_path_length=max_episode_len,
         max_state_dim=max_state_dim,
         depth_keys=depth_keys,
-        mujoco_env=mujoco_env,
+        eval_task_name=eval_task_name,
     )
     env = ActionDTypeWrapper(env, np.float32)
     env = ActionRepeatWrapper(env, action_repeat)

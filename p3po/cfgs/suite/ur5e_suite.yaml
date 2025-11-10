@@ -34,7 +34,7 @@ pixel_keys: ["pixels"]
 depth_keys: ["depths"]
 
 proprio_key: "proprioceptive"
-feature_key: 'features'
+feature_key: "features"
 
 # snapshot
 save_snapshot: true
@@ -51,5 +51,6 @@ task_make_fn:
   max_episode_len: ??? # to be specified later
   max_state_dim: ??? # to be specified later
   depth_keys: ${suite.depth_keys}
-  mujoco_env: False
+  eval_task_name: ${eval_task_name}
   training: ${training}
+  relative_actions: ${relative_actions}

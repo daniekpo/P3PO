@@ -6,16 +6,32 @@ import torch
 from torchvision import transforms
 
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+
 plt.ioff()
 
 from utilities.correspondence import Correspondence
 from utilities.depth import Depth
 
-class PointsClass():
-    def __init__(self, root_dir, task_name, device, width, height, image_size_multiplier, ensemble_size, dift_layer, dift_steps, num_points, **kwargs):
+
+class PointsClass:
+    def __init__(
+        self,
+        root_dir,
+        task_name,
+        device,
+        width,
+        height,
+        image_size_multiplier,
+        ensemble_size,
+        dift_layer,
+        dift_steps,
+        num_points,
+        **kwargs,
+    ):
         """
         Initialize the Points Class for finding key points in the episode.
 
@@ -50,9 +66,22 @@ class PointsClass():
         """
 
         # Set up the correspondence model and find the expert image features
-        self.correspondence_model = Correspondence(device, root_dir + "/dift/", width, height, image_size_multiplier, ensemble_size, dift_layer, dift_steps)
+        self.correspondence_model = Correspondence(
+            device,
+            root_dir + "/dift/",
+            width,
+            height,
+            image_size_multiplier,
+            ensemble_size,
+            dift_layer,
+            dift_steps,
+        )
         try:
-            self.initial_coords = np.array(pickle.load(open("%s/coordinates/coords/%s.pkl" % (root_dir, task_name), "rb")))
+            self.initial_coords = np.array(
+                pickle.load(
+                    open("%s/coordinates/coords/%s.pkl" % (root_dir, task_name), "rb")
+                )
+            )
         except Exception as e:
             print(e)
             print("Setting coordinates to random values")
@@ -62,13 +91,19 @@ class PointsClass():
             self.initial_coords[:, 0] = 0
 
         try:
-            expert_image = Image.open("%s/coordinates/images/%s.png" % (root_dir, task_name)).convert('RGB')
+            expert_image = Image.open(
+                "%s/coordinates/images/%s.png" % (root_dir, task_name)
+            ).convert("RGB")
         except Exception as e:
             print(e)
             print("Setting expert image to random values")
-            expert_image = Image.fromarray((np.random.rand(256, 256, 3) * 255).astype(np.uint8))
+            expert_image = Image.fromarray(
+                (np.random.rand(256, 256, 3) * 255).astype(np.uint8)
+            )
 
-        self.expert_correspondence_features = self.correspondence_model.set_expert_correspondence(expert_image)
+        self.expert_correspondence_features = (
+            self.correspondence_model.set_expert_correspondence(expert_image)
+        )
 
         # Set up the depth model
         self.depth_model = Depth(root_dir + "/Depth-Anything-V2/", device)
@@ -76,11 +111,13 @@ class PointsClass():
         # Set up cotracker
         sys.path.append(root_dir + "/co-tracker/")
         from cotracker.predictor import CoTrackerOnlinePredictor
-        self.cotracker = CoTrackerOnlinePredictor(checkpoint=root_dir + "/co-tracker/checkpoints/scaled_online.pth", window_len=16).to(device)
 
+        self.cotracker = CoTrackerOnlinePredictor(
+            checkpoint=root_dir + "/co-tracker/checkpoints/scaled_online.pth",
+            window_len=16,
+        ).to(device)
 
-        self.transform = transforms.Compose([
-                            transforms.PILToTensor()])
+        self.transform = transforms.Compose([transforms.PILToTensor()])
         self.image_list = torch.tensor([]).to(device)
         self.depth = np.array([])
 
@@ -102,7 +139,9 @@ class PointsClass():
             The image to add to the image list. This image must be in RGB format.
         """
 
-        transformed = torch.from_numpy(image.astype(np.uint8)).permute(2, 0, 1).float() / 255
+        transformed = (
+            torch.from_numpy(image.astype(np.uint8)).permute(2, 0, 1).float() / 255
+        )
 
         # We only want to track the last 16 images so pop the first one off if we have more than 16
         if self.image_list.shape[0] > 0 and self.image_list.shape[1] == 16:
@@ -111,7 +150,13 @@ class PointsClass():
         # If it is the first image you want to repeat until the whole array is full
         # Otherwise it will just add the new image to the end of the array
         while self.image_list.shape[0] == 0 or self.image_list.shape[1] < 16:
-            self.image_list = torch.cat((self.image_list, transformed.unsqueeze(0).unsqueeze(0).clone().to(self.device)), dim=1)
+            self.image_list = torch.cat(
+                (
+                    self.image_list,
+                    transformed.unsqueeze(0).unsqueeze(0).clone().to(self.device),
+                ),
+                dim=1,
+            )
 
     def reset_episode(self):
         """
@@ -126,7 +171,11 @@ class PointsClass():
         Find the semantic similar points between the expert image and the current image.
         """
 
-        self.semantic_similar_points = self.correspondence_model.find_correspondence(self.expert_correspondence_features, self.image_list[0, -1], self.initial_coords)
+        self.semantic_similar_points = self.correspondence_model.find_correspondence(
+            self.expert_correspondence_features,
+            self.image_list[0, -1],
+            self.initial_coords,
+        )
 
     def get_depth(self, last_n_frames=1):
         """
@@ -138,10 +187,14 @@ class PointsClass():
             The number of frames to look back in the episode
         """
 
-        self.depth = np.zeros((last_n_frames, self.image_list.shape[3], self.image_list.shape[4]))
+        self.depth = np.zeros(
+            (last_n_frames, self.image_list.shape[3], self.image_list.shape[4])
+        )
         for frame_num in range(last_n_frames):
             frame_idx = -1 * (last_n_frames - frame_num)
-            numpy_image = self.image_list[0, frame_idx].cpu().numpy().transpose(1, 2, 0) * 255
+            numpy_image = (
+                self.image_list[0, frame_idx].cpu().numpy().transpose(1, 2, 0) * 255
+            )
             depth = self.depth_model.get_depth(numpy_image)
             self.depth[frame_idx] = depth
 
@@ -172,17 +225,25 @@ class PointsClass():
         is_first_step : bool
             Whether or not this is the first step in the episode.
         """
+        DEBUG_NO_POINTS = False
 
         if is_first_step:
-            self.cotracker(video_chunk=self.image_list[0, 0].unsqueeze(0).unsqueeze(0),
-                           is_first_step=True,
-                           add_support_grid=True,
-                           queries=self.semantic_similar_points[None].to(self.device))
+            if DEBUG_NO_POINTS:
+                print("WARNING: POINT TRACKS ARE CURRENTLY SET TO ZERO FOR DEBUGGING")
+            self.cotracker(
+                video_chunk=self.image_list[0, 0].unsqueeze(0).unsqueeze(0),
+                is_first_step=True,
+                add_support_grid=True,
+                queries=self.semantic_similar_points[None].to(self.device),
+            )
             self.tracks = self.semantic_similar_points
         else:
             tracks, _ = self.cotracker(self.image_list, one_frame=one_frame)
             # Remove the support points
-            tracks = tracks[:, :, 0:self.num_points, :]
+            tracks = tracks[:, :, 0 : self.num_points, :]
+
+            if DEBUG_NO_POINTS:
+                tracks = torch.zeros_like(tracks)
 
             self.tracks = tracks
 
@@ -209,14 +270,18 @@ class PointsClass():
             for point in range(self.num_points):
                 frame_idx = -1 * (last_n_frames - frame_num)
                 try:
-                    depth = self.depth[frame_idx, int(self.tracks[0, frame_idx, point][1]), int(self.tracks[0, frame_idx, point][0])]
+                    depth = self.depth[
+                        frame_idx,
+                        int(self.tracks[0, frame_idx, point][1]),
+                        int(self.tracks[0, frame_idx, point][0]),
+                    ]
                 except:
                     depth = 0
 
-                x = (self.tracks[0, frame_idx, point][0] - width/2) * depth
-                y = (self.tracks[0, frame_idx, point][1] - height/2) * depth
-                x /= (width/2)
-                y /= (height/2)
+                x = (self.tracks[0, frame_idx, point][0] - width / 2) * depth
+                y = (self.tracks[0, frame_idx, point][1] - height / 2) * depth
+                x /= width / 2
+                y /= height / 2
 
                 final_points[frame_num, point] = torch.tensor([x, y, depth])
 
@@ -241,17 +306,28 @@ class PointsClass():
 
         for frame_num in range(last_n_frames):
             frame_idx = -1 * (last_n_frames - frame_num)
-            curr_image = self.image_list[0, frame_idx].cpu().numpy().transpose(1, 2, 0) * 255
+            curr_image = (
+                self.image_list[0, frame_idx].cpu().numpy().transpose(1, 2, 0) * 255
+            )
 
             fig, ax = plt.subplots(1)
             ax.imshow(curr_image.astype(np.uint8))
 
-            rainbow = plt.get_cmap('rainbow')
+            rainbow = plt.get_cmap("rainbow")
             # Generate n evenly spaced colors from the colormap
-            colors = [rainbow(i / self.tracks.shape[2]) for i in range(self.tracks.shape[2])]
+            colors = [
+                rainbow(i / self.tracks.shape[2]) for i in range(self.tracks.shape[2])
+            ]
 
             for idx, coord in enumerate(self.tracks[0, frame_idx]):
-                ax.add_patch(patches.Circle((coord[0].cpu(), coord[1].cpu()), 5, facecolor=colors[idx], edgecolor="black"))
+                ax.add_patch(
+                    patches.Circle(
+                        (coord[0].cpu(), coord[1].cpu()),
+                        5,
+                        facecolor=colors[idx],
+                        edgecolor="black",
+                    )
+                )
             fig.canvas.draw()
             img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
             img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))

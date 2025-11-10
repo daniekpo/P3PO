@@ -3,13 +3,77 @@ from gymnasium import spaces
 import numpy as np
 import random
 
-from rvkit.utils.transformations import delta_pose_to_pose
+import cv2
 
 """
 X: min: -0.2966571473135897 max: 0.49383734924956946
 Y: min: -0.80490048532146 max: -0.20859620805567852
 Z: min: 0.23781020226938232 max: 0.6900017827785798
 """
+
+def make_homo_transform(R, t):
+    R = np.array(R)
+    assert R.shape in [(3, 3), (3,), (1, 3)], f"Unexpected R shape {R.shape}"
+    if R.ndim == 1:
+        R = cv2.Rodrigues(R)[0]
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = t
+    return T
+
+
+def get_axis_vector_from_matrix(T):
+    axis_vector = np.zeros([6])
+    axis_vector[:3] = T[:3, 3]
+    axis_vector[3:] = cv2.Rodrigues(T[:3, :3])[0].flatten()
+    return axis_vector
+
+
+def pose_to_delta_pose(next_pose, current_pose, return_axis_vector=True):
+    """
+    Compute the relative (local-frame) delta pose between two absolute poses.
+
+    Args:
+        next_pose: 6D array [x, y, z, rx, ry, rz] of the next absolute pose.
+        current_pose: 6D array [x, y, z, rx, ry, rz] of the current absolute pose.
+        return_axis_vector: if True, returns 6D [x, y, z, rx, ry, rz] delta;
+                            otherwise returns 4x4 transformation matrix.
+
+    Returns:
+        The local-frame delta transform (either 6D or 4x4).
+    """
+    T_next = make_homo_transform(next_pose[3:], next_pose[:3])
+    T_curr = make_homo_transform(current_pose[3:], current_pose[:3])
+
+    # Compute relative transform in local frame of current pose
+    T_delta = np.linalg.inv(T_curr) @ T_next
+
+    if return_axis_vector:
+        return get_axis_vector_from_matrix(T_delta)
+    return T_delta
+
+
+def delta_pose_to_pose(delta_pose, current_pose, return_axis_vector=True):
+    """
+    Args:
+        delta_pose: 6d array. Axis aligned delta pose.
+        current_pose: 6d array. Axis aligned current robot pose.
+        return_axis_vector: whether to returned axis aligned pose (6D) or a
+            transformation matrix. Defaults to True
+
+    Returns:
+        6D axis aligned pose vector or 4x4 transformation matrix depending.
+    """
+    delta_T = make_homo_transform(delta_pose[3:], delta_pose[:3])
+    current_T = make_homo_transform(current_pose[3:], current_pose[:3])
+
+    new_pose_T = current_T @ delta_T
+    if return_axis_vector:
+        axis_vector = get_axis_vector_from_matrix(new_pose_T)
+        return axis_vector
+
+    return new_pose_T
+
 
 
 class UR5Env(gym.Env):
@@ -33,6 +97,7 @@ class UR5Env(gym.Env):
         host="169.254.129.1",
         training=True,
         primary_camera_name=None,
+        relative_actions=True,
     ):
         super().__init__()
         self.host = host
@@ -50,6 +115,7 @@ class UR5Env(gym.Env):
             4.710003,
             -0.000031,
         ]
+        self.relative_actions = relative_actions
 
         # Action: [x, y, z, rx, ry, rz, gripper]
         # Use conservative bounds for translation/rotation, gripper in [0, 1]
@@ -125,13 +191,14 @@ class UR5Env(gym.Env):
 
     def step(self, action):
         if not self.training:
-            delta_pose = np.array(action[:6], dtype=np.float32)
-            gripper = action[6]
-            # self.robot.movel(pose, acc=0.1, vel=0.1)
-            # print(f"If enabled, the robot would move to {delta_pose}")
+            if self.relative_actions:
+                delta_pose = np.array(action[:6], dtype=np.float32)
+                current_pose = np.array(self.robot.getl())
+                next_pose = delta_pose_to_pose(delta_pose, current_pose)
+            else:
+                next_pose = action[:6]
 
-            current_pose = np.array(self.robot.getl())
-            next_pose = delta_pose_to_pose(delta_pose, current_pose)
+            gripper = action[6]
             self.robot.movel(next_pose, acc=0.1, vel=0.1)
 
             # Gripper control
@@ -201,4 +268,3 @@ class UR5Env(gym.Env):
 
     def close(self):
         self.robot.close()
-

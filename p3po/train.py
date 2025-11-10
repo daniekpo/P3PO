@@ -4,6 +4,7 @@ import warnings
 import os
 import time
 from datetime import datetime
+import json
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
@@ -15,6 +16,7 @@ import torch
 import cv2
 import numpy as np
 import wandb
+import omegaconf
 
 import utils
 from logger import Logger
@@ -41,6 +43,9 @@ def make_agent(obs_spec, action_spec, cfg):
 
 class WorkspaceIL:
     def __init__(self, cfg):
+        time_str = datetime.now().strftime("%m.%d.%H.%M")
+        self.run_name = f"{cfg.run_name}_{time_str}"
+
         self.work_dir = Path.cwd()
         print(f"workspace: {self.work_dir}")
 
@@ -83,13 +88,17 @@ class WorkspaceIL:
                 except yaml.YAMLError as exc:
                     print(exc)
 
-            self.run_name = datetime.now().strftime("%m-%d-%H")
+            json_config = omegaconf.OmegaConf.to_container(cfg, resolve=True)
             self.wandb_loger = wandb.init(
                 name=self.run_name,
                 entity="daniekpo",
                 project="p3po",
-                config=dict(cfg),
+                config=json_config,
             )
+
+            # save config
+            with open(self.work_dir / "config.json", "w") as f:
+                json.dump(json_config, f)
 
             points_class = PointsClass(**points_cfg)
             for i in range(len(self.env)):

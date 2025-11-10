@@ -11,6 +11,7 @@ from pathlib import Path
 import hydra
 import torch
 import numpy as np
+import imageio
 
 import utils
 from logger import Logger
@@ -37,6 +38,8 @@ def make_agent(obs_spec, action_spec, cfg):
 
 class WorkspaceIL:
     def __init__(self, cfg):
+        self.save_video_every = 10
+        self.write_videos = True
         self.work_dir = Path.cwd()
         print(f"workspace: {self.work_dir}")
 
@@ -54,9 +57,16 @@ class WorkspaceIL:
         # create logger
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
         # create envs
-        self.cfg.suite.task_make_fn.max_episode_len = (
-            self.expert_replay_loader.dataset._max_episode_len * self.cfg.suite.action_repeat
-        )
+        # self.cfg.suite.task_make_fn.max_episode_len = (
+        #     self.expert_replay_loader.dataset._max_episode_len * self.cfg.suite.action_repeat
+        # )
+
+        if not self.cfg.suite.task_make_fn.max_episode_len:
+            self.cfg.suite.task_make_fn.max_episode_len = (
+                self.expert_replay_loader.dataset._max_episode_len
+                * self.cfg.suite.action_repeat
+            )
+
         self.cfg.suite.task_make_fn.max_state_dim = (
             self.expert_replay_loader.dataset._max_state_dim
         )
@@ -78,7 +88,13 @@ class WorkspaceIL:
 
             points_class = PointsClass(**points_cfg)
             for i in range(len(self.env)):
-                self.env[i] = P3POWrapper(self.env[i], self.cfg.suite.pixel_keys, self.cfg.depth_keys, self.cfg.training_keys, points_class)
+                self.env[i] = P3POWrapper(
+                    self.env[i],
+                    self.cfg.suite.pixel_keys,
+                    self.cfg.depth_keys,
+                    self.cfg.training_keys,
+                    points_class,
+                )
 
         # create agent
         self.agent = make_agent(
@@ -153,6 +169,17 @@ class WorkspaceIL:
                     total_reward += time_step.reward
                     step += 1
 
+                    if step % self.save_video_every == 0:
+                        if self.write_videos:
+                            video_list = self.env[env_idx].video_list
+                            task_name = "test_task_change_me"
+                            video_path = Path(
+                                f"tracks_videos/{task_name}_{episode}_{step}.mp4"
+                            )
+                            video_path.parent.mkdir(parents=True, exist_ok=True)
+                            imageio.mimsave(video_path, video_list, fps=30)
+                            print(f"saved video to {video_path}")
+
                     if self.cfg.suite.name == "calvin" and time_step.reward == 1:
                         self.agent.buffer_reset()
 
@@ -175,6 +202,13 @@ class WorkspaceIL:
             log("episode_length", step * self.cfg.suite.action_repeat / episode)
             log("episode", self.global_episode)
             log("step", self.global_step)
+
+        if self.write_videos:
+            video_list = self.env[env_idx].video_list
+            task_name = "test_task_change_me"
+            video_path = Path(f"tracks_videos/{task_name}_final.mp4")
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            imageio.mimsave(video_path, video_list, fps=30)
 
         self.agent.train(True)
 

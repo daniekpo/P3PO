@@ -38,8 +38,9 @@ def get_relative_action(actions, action_after_steps):
         matrix[:3, 3] = pos
         # relative transformation
         matrix_rel = np.linalg.inv(matrix_prev) @ matrix
-        # relative pose
-        pos_rel = pos - pos_prev
+        # relative pose (translation in previous frame coordinates)
+        pos_rel = matrix_rel[:3, 3]
+        # pos_rel = pos - pos_prev
         r_rel = R.from_matrix(matrix_rel[:3, :3]).as_rotvec()
         # add to list
         relative_actions.append(np.concatenate([pos_rel, r_rel, gripper]))
@@ -106,7 +107,9 @@ class BCDataset(IterableDataset):
         self._paths.extend([Path(path) / f"{task}.pkl" for task in tasks])
 
         self._graph_paths = []
-        self._graph_paths.extend([Path(processed_path) / f"points/{task}.pkl" for task in tasks])
+        self._graph_paths.extend(
+            [Path(processed_path) / f"points/{task}.pkl" for task in tasks]
+        )
 
         paths = {}
         graph_paths = {}
@@ -131,18 +134,18 @@ class BCDataset(IterableDataset):
         self._num_samples = 0
         min_stat, max_stat = None, None
         min_act, max_act = None, None
-        for (_graph_idx, _path_idx) in zip(self._graph_paths, self._paths):
+        for _graph_idx, _path_idx in zip(self._graph_paths, self._paths):
             print(f"Loading {str(self._paths[_path_idx])}")
             # read
             data = pkl.load(open(str(self._paths[_path_idx]), "rb"))
-            graph_data = pkl.load(open(str(self._graph_paths[_graph_idx]), "rb"))['episode_list']
+            graph_data = pkl.load(open(str(self._graph_paths[_graph_idx]), "rb"))[
+                "episode_list"
+            ]
 
             for i, episode in enumerate(graph_data):
-                data['observations'][i]['graph'] = episode
-                
-            observations = (
-                data["observations"]
-            )
+                data["observations"][i]["graph"] = episode
+
+            observations = data["observations"]
             if "task_emb" in data:
                 task_emb = data["task_emb"]
             else:
@@ -182,6 +185,8 @@ class BCDataset(IterableDataset):
                 )
                 # Repeat last dimension of each observation for history_len times
                 for key in observations[i].keys():
+                    if key == "demo_dir":
+                        continue
                     observations[i][key] = np.concatenate(
                         [
                             observations[i][key],
@@ -221,9 +226,7 @@ class BCDataset(IterableDataset):
                     ),
                 )
                 self._max_state_dim = 7
-                self._num_samples += (
-                    len(observations[i][self._keys[0]])
-                )
+                self._num_samples += len(observations[i][self._keys[0]])
 
                 # max, min action
                 if min_act is None:
@@ -347,9 +350,9 @@ class BCDataset(IterableDataset):
                 self._history_len + self._num_queries - 1
             )  # -1 since its num_queries including the last action of the history
             act = np.zeros((num_actions, actions.shape[-1]))
-            act[
-                : min(len(actions), sample_idx + num_actions) - sample_idx
-            ] = actions[sample_idx : sample_idx + num_actions]
+            act[: min(len(actions), sample_idx + num_actions) - sample_idx] = actions[
+                sample_idx : sample_idx + num_actions
+            ]
             if len(actions) < sample_idx + num_actions:
                 act[len(actions) - sample_idx :] = actions[-1]
             sampled_action = np.lib.stride_tricks.sliding_window_view(
@@ -386,24 +389,19 @@ class BCDataset(IterableDataset):
                 ],
                 axis=1,
             )
-            return_dict["prompt_proprioceptive"] = self.preprocess[
-                "proprioceptive"
-            ](prompt_proprioceptive_state)
+            return_dict["prompt_proprioceptive"] = self.preprocess["proprioceptive"](
+                prompt_proprioceptive_state
+            )
             # actions
             prompt_action = prompt_episode["action"][-1:]
-            return_dict["prompt_actions"] = self.preprocess["actions"](
-                prompt_action
-            )
+            return_dict["prompt_actions"] = self.preprocess["actions"](prompt_action)
             return return_dict
         elif self._prompt == "intermediate_goal":
             prompt_episode = episodes
             prompt_observations = prompt_episode["observation"]
-            intermediate_goal_step = (
-                self._intermediate_goal_step
-                + np.random.randint(
-                    -self._intermediate_goal_step // 10 * 3,
-                    self._intermediate_goal_step // 10 * 3,
-                )
+            intermediate_goal_step = self._intermediate_goal_step + np.random.randint(
+                -self._intermediate_goal_step // 10 * 3,
+                self._intermediate_goal_step // 10 * 3,
             )
             goal_idx = min(
                 sample_idx + intermediate_goal_step,
@@ -411,29 +409,23 @@ class BCDataset(IterableDataset):
             )
             # pixels
             for key in self._keys:
-                prompt_pixel = self.aug(prompt_observations[key][goal_idx])[
-                    None
-                ]
+                prompt_pixel = self.aug(prompt_observations[key][goal_idx])[None]
                 return_dict["prompt_" + key] = prompt_pixel
             prompt_proprioceptive_state = np.concatenate(
                 [
-                    prompt_observations["cartesian_states"][
-                        goal_idx : goal_idx + 1
-                    ],
+                    prompt_observations["cartesian_states"][goal_idx : goal_idx + 1],
                     prompt_observations["gripper_states"][goal_idx : goal_idx + 1][
                         :, None
                     ],
                 ],
                 axis=1,
             )
-            return_dict["prompt_proprioceptive"] = self.preprocess[
-                "proprioceptive"
-            ](prompt_proprioceptive_state)
+            return_dict["prompt_proprioceptive"] = self.preprocess["proprioceptive"](
+                prompt_proprioceptive_state
+            )
             # actions
             prompt_action = prompt_episode["action"][goal_idx : goal_idx + 1]
-            return_dict["prompt_actions"] = self.preprocess["actions"](
-                prompt_action
-            )
+            return_dict["prompt_actions"] = self.preprocess["actions"](prompt_action)
             return return_dict
 
     def sample_test(self, env_idx, step=None):
@@ -467,9 +459,9 @@ class BCDataset(IterableDataset):
                 ],
                 axis=1,
             )
-            return_dict["prompt_proprioceptive"] = self.preprocess[
-                "proprioceptive"
-            ](prompt_proprioceptive_state)
+            return_dict["prompt_proprioceptive"] = self.preprocess["proprioceptive"](
+                prompt_proprioceptive_state
+            )
             return_dict["prompt_actions"] = None
         elif self._prompt == "intermediate_goal":
             goal_idx = min(
@@ -487,15 +479,13 @@ class BCDataset(IterableDataset):
             prompt_proprioceptive_state = np.concatenate(
                 [
                     observations["cartesian_states"][goal_idx : goal_idx + 1],
-                    observations["gripper_states"][goal_idx : goal_idx + 1][
-                        :, None
-                    ],
+                    observations["gripper_states"][goal_idx : goal_idx + 1][:, None],
                 ],
                 axis=1,
             )
-            return_dict["prompt_proprioceptive"] = self.preprocess[
-                "proprioceptive"
-            ](prompt_proprioceptive_state)
+            return_dict["prompt_proprioceptive"] = self.preprocess["proprioceptive"](
+                prompt_proprioceptive_state
+            )
             return_dict["prompt_actions"] = None
 
         return return_dict
