@@ -2,6 +2,7 @@
 
 import warnings
 import os
+import pickle
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
@@ -97,8 +98,29 @@ class WorkspaceIL:
                 )
 
         # create agent
+        if self.cfg.use_training_action_spec:
+            with open(f"{self.cfg.training_dir}/action_spec.pkl", "rb") as f:
+                print("Using training action spec")
+                action_spec = pickle.load(f)
+        elif self.cfg.use_dataset_stats_for_action_spec:
+            print("Using dataset stats for action specs")
+            from dm_env import specs
+
+            action_spec = specs.BoundedArray(
+                (self.expert_replay_loader.dataset._max_action_dim,),
+                np.float32,
+                self.expert_replay_loader.dataset.stats["actions"]["min"],
+                self.expert_replay_loader.dataset.stats["actions"]["max"],
+                "action",
+            )
+        elif self.cfg.action_spec_path is not None:
+            with open(self.cfg.action_spec_path, "rb") as f:
+                action_spec = pickle.load(f)
+        else:
+            action_spec = self.env[0].action_spec()
+
         self.agent = make_agent(
-            self.env[0].observation_spec(), self.env[0].action_spec(), cfg
+            self.env[0].observation_spec(), action_spec, cfg
         )
 
         self.envs_till_idx = len(self.env)

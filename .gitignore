@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 checkpoints/
+processed_data/action_specs/
 __pycache__/
 *.py[cod]
 *$py.class

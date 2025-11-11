@@ -12,6 +12,11 @@ use_p3po: True
 training: False
 eval_task_name: "put tennis ball in plate"
 relative_actions: true
+use_dataset_stats_for_action_spec: false
+use_quaternion_orientation: false
+training_dir: null
+use_training_action_spec: true
+action_spec_path: null
 
 # misc
 seed: 2
@@ -46,7 +51,7 @@ num_queries: 10
 expert_dataset: ${dataloader.bc_dataset}
 
 # Load weights
-bc_weight: /scratch/repos/ref_P3PO/p3po/exp_local/2025.11.03_train/deterministic/234319_hidden_dim_256/snapshot/600000.pt
+bc_weight: ${training_dir}/snapshot/600000.pt
 
 hydra:
   run:

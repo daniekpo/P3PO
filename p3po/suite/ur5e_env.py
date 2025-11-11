@@ -121,9 +121,9 @@ class UR5Env(gym.Env):
         # Use conservative bounds for translation/rotation, gripper in [0, 1]
         action_low = np.array(
             [
-                -1.0,
-                -1.0,
-                0.0,  # x, y, z (meters)
+                -0.296657,
+                -0.80490048532146,
+                0.23781020226938232,  # x, y, z (meters)
                 -np.pi,
                 -np.pi,
                 -np.pi,  # rx, ry, rz (radians)
@@ -132,7 +132,15 @@ class UR5Env(gym.Env):
             dtype=np.float32,
         )
         action_high = np.array(
-            [1.0, 1.0, 1.0, np.pi, np.pi, np.pi, 1.0], dtype=np.float32
+            [
+                0.49383734924956946,
+                -0.20859620805567852,
+                0.6900017827785798,
+                np.pi,
+                np.pi,
+                np.pi,
+                1.0 # gripper
+            ], dtype=np.float32
         )
         self.action_space = spaces.Box(
             low=action_low, high=action_high, dtype=np.float32
@@ -147,8 +155,7 @@ class UR5Env(gym.Env):
                 }
             ),
             "joints": spaces.Box(-np.pi, np.pi, shape=(6,), dtype=np.float32),
-            "pose": spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
-            "features": spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
+            "pose": spaces.Box(action_low[:6], action_high[:6], shape=(6,), dtype=np.float32)
         }
 
         if self.include_depth:

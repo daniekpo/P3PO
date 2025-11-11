@@ -5,6 +5,7 @@ import os
 import time
 from datetime import datetime
 import json
+import pickle
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
@@ -114,7 +115,7 @@ class WorkspaceIL:
         if (
             self.cfg.dataloader.bc_dataset._target_
             == "read_data.p3po_general.BCDataset"
-        ):
+        ) or self.cfg.use_dataset_stats_for_action_spec:
             from dm_env import specs
 
             action_spec = specs.BoundedArray(
@@ -124,8 +125,10 @@ class WorkspaceIL:
                 self.stats["actions"]["max"],
                 "action",
             )
+            self.action_spec = action_spec
         else:
             action_spec = self.env[0].action_spec()
+            self.action_spec = action_spec
 
         self.agent = make_agent(self.env[0].observation_spec(), action_spec, cfg)
 
@@ -277,6 +280,9 @@ class WorkspaceIL:
                 self.save_snapshot()
 
             self._global_step += 1
+
+            with open(self.work_dir / "action_spec.pkl", "wb") as f:
+                pickle.dump(self.action_spec, f)
 
     def save_snapshot(self):
         snapshot_dir = self.work_dir / "snapshot"

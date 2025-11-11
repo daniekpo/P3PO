@@ -87,6 +87,7 @@ class BCDataset(IterableDataset):
         subsample,
         skip_first_n,
         relative_actions,
+        use_quaternion_orientation,
     ):
         self._obs_type = obs_type
         self._prompt = prompt
@@ -180,9 +181,12 @@ class BCDataset(IterableDataset):
                 else:
                     actions = actions[self._action_after_steps :]
                 # Convert cartesian states to quaternion orientation
-                observations[i]["cartesian_states"] = get_quaternion_orientation(
-                    observations[i]["cartesian_states"]
-                )
+                if use_quaternion_orientation:
+                    observations[i]["cartesian_states"] = get_quaternion_orientation(
+                        observations[i]["cartesian_states"]
+                    )
+
+
                 # Repeat last dimension of each observation for history_len times
                 for key in observations[i].keys():
                     if key == "demo_dir":
@@ -226,6 +230,7 @@ class BCDataset(IterableDataset):
                     ),
                 )
                 self._max_state_dim = 7
+                self._max_action_dim = 7
                 self._num_samples += len(observations[i][self._keys[0]])
 
                 # max, min action
@@ -243,12 +248,17 @@ class BCDataset(IterableDataset):
             # keep record of max and min stat
             max_cartesian = data["max_cartesian"]
             min_cartesian = data["min_cartesian"]
-            max_cartesian = np.concatenate(
-                [data["max_cartesian"][:3], [1] * 4]
-            )  # for quaternion
-            min_cartesian = np.concatenate(
-                [data["min_cartesian"][:3], [-1] * 4]
-            )  # for quaternion
+
+            if use_quaternion_orientation:
+                max_cartesian = np.concatenate(
+                    [data["max_cartesian"][:3], [1] * 4]
+                )  # for quaternion
+                min_cartesian = np.concatenate(
+                    [data["min_cartesian"][:3], [-1] * 4]
+                )  # for quaternion
+            else:
+                max_cartesian = data["max_cartesian"]
+                min_cartesian = data["min_cartesian"]
             max_gripper = data["max_gripper"]
             min_gripper = data["min_gripper"]
             max_val = np.concatenate([max_cartesian, max_gripper[None]], axis=0)

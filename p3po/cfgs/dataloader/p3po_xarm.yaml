@@ -18,3 +18,4 @@ bc_dataset:
   subsample: 1
   skip_first_n: 0
   relative_actions: ${relative_actions}
+  use_quaternion_orientation: ${use_quaternion_orientation}

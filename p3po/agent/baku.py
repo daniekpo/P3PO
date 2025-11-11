@@ -1,3 +1,4 @@
+import pickle
 import einops
 import numpy as np
 from collections import deque
@@ -411,6 +412,8 @@ class BCAgent:
         self.train()
         self.buffer_reset()
 
+        self.act_history = []
+
     def __repr__(self):
         return "bc"
 
@@ -519,20 +522,35 @@ class BCAgent:
             self.actor.parameters(), lr=self.lr, weight_decay=1e-4
         )
 
+    def preprocess(self, pose, norm_stats):
+        norm_min =norm_stats[self.proprio_key]['min']
+        norm_max = norm_stats[self.proprio_key]["max"]
+
+        new_pose = (pose - norm_min) / (norm_max - norm_min + 1e-5)
+        return new_pose
+
+    def postprocess(self, action, norm_stats):
+        actions_max = norm_stats["actions"]["max"]
+        actions_min = norm_stats["actions"]["min"]
+
+        action = action * (actions_max - actions_min) + actions_min
+        return action
+
+
     def act(self, obs, prompt, norm_stats, step, global_step, eval_mode=False):
-        if norm_stats is not None:
-            pre_process = lambda s_qpos: (
-                s_qpos - norm_stats[self.proprio_key]["min"]
-            ) / (
-                norm_stats[self.proprio_key]["max"]
-                - norm_stats[self.proprio_key]["min"]
-                + 1e-5
-            )
-            post_process = (
-                lambda a: a
-                * (norm_stats["actions"]["max"] - norm_stats["actions"]["min"])
-                + norm_stats["actions"]["min"]
-            )
+        # if norm_stats is not None:
+        #     pre_process = lambda s_qpos: (
+        #         s_qpos - norm_stats[self.proprio_key]["min"]
+        #     ) / (
+        #         norm_stats[self.proprio_key]["max"]
+        #         - norm_stats[self.proprio_key]["min"]
+        #         + 1e-5
+        #     )
+        #     post_process = (
+        #         lambda a: a
+        #         * (norm_stats["actions"]["max"] - norm_stats["actions"]["min"])
+        #         + norm_stats["actions"]["min"]
+        #     )
 
         # lang projection
         if self.use_language:
@@ -573,7 +591,7 @@ class BCAgent:
             )
             features.append(encoder_output)
         if self.use_proprio:
-            obs[self.proprio_key] = pre_process(obs[self.proprio_key])
+            obs[self.proprio_key] = self.preprocess(obs[self.proprio_key], norm_stats)
             self.proprio_buffer.append(obs[self.proprio_key])
             proprio = torch.as_tensor(
                 np.array(self.proprio_buffer), device=self.device
@@ -660,11 +678,19 @@ class BCAgent:
             exp_weights = torch.from_numpy(exp_weights).to(self.device).unsqueeze(dim=1)
             action = (actions_for_curr_step * exp_weights).sum(dim=0, keepdim=True)
             if norm_stats is not None:
-                return post_process(action.cpu().numpy()[0])
+                post_action = self.postprocess(action.cpu().numpy()[0], norm_stats)
+                self.act_history.append({"obs": obs, "action": action, "post_processed_action": post_action})
+                with open("eval_history.pkl", "wb") as f:
+                    pickle.dump(self.act_history, f)
+                return post_action
             return action.cpu().numpy()[0]
         else:
             if norm_stats is not None:
-                return post_process(action.cpu().numpy()[0, -1])
+                post_action = self.postprocess(action.cpu().numpy()[0, -1], norm_stats)
+                self.act_history.append({"obs": obs, "action": action, "post_processed_action": post_action})
+                with open("eval_history.pkl", "wb") as f:
+                    pickle.dump(self.act_history, f)
+                return post_action
             return action.cpu().numpy()[0, -1, :]
 
     def update(self, expert_replay_iter, step, update=True):
@@ -932,3 +958,4 @@ class BCAgent:
             for k in opt_keys:
                 self.__dict__[k] = payload[k]
         self.train(True)
+
