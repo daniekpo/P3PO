@@ -2,7 +2,7 @@ defaults:
   - _self_
   - task: p3po
 
-root_dir: /scratch/repos/ref_P3PO
+root_dir: /scratch/repos/P3PO
 
 task_name: "put_tennis_ball_in_plate"
 device: "cuda"

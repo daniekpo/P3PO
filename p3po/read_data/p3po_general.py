@@ -95,7 +95,7 @@ class BCDataset(IterableDataset):
                 task_emb = data["task_emb"]
             else:
                 task_emb = 0
-                
+
             # store
             self._episodes[_path_idx] = []
             for i in range(min(num_demos_per_task, len(observations))):

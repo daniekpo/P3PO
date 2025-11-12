@@ -8,12 +8,12 @@ bc_dataset:
   history_len: ${suite.history_len}
   prompt: ${prompt}
   temporal_agg: ${temporal_agg}
-  num_queries: ${num_queries}
+  num_future_actions: ${num_future_actions}
   img_size: 128
   action_after_steps: ${suite.action_after_steps}
   intermediate_goal_step: 30
   store_actions: true
   pixel_keys: ${suite.pixel_keys}
-  subsample: 1
+  subsample: ${subsample}
   skip_first_n: 0
   relative_actions: true

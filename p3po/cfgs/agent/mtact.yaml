@@ -5,7 +5,7 @@ action_shape: ??? # to be specified later
 device: ${device}
 use_tb: ${use_tb}
 lr: 1e-5
-num_queries: ${num_queries}
+num_future_actions: ${num_future_actions}
 kl_weight: 10
 hidden_dim: 512
 dim_feedforward: 3200

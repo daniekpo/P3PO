@@ -156,9 +156,9 @@ for i in tqdm(range(num_demos)):
     episode_list.append(torch.stack(points_list))
     points_class.reset_episode()
     end_time = time.time()
-    print(f"Processing demo {i} took {end_time - start_time:.4f} seconds")
+    # print(f"Processing demo {i} took {end_time - start_time:.4f} seconds")
     mean_frame_time = np.array(frame_times).mean()
-    print(f"Mean frame time: {mean_frame_time}")
+    # print(f"Mean frame time: {mean_frame_time}")
 
 final_graph = {}
 final_graph["episode_list"] = episode_list

@@ -8,7 +8,7 @@ bc_dataset:
   history_len: ${suite.history_len}
   prompt: ${prompt}
   temporal_agg: ${temporal_agg}
-  num_queries: ${num_queries}
+  num_future_actions: ${num_future_actions}
   img_size: 84
   store_actions: true
   pixel_keys: ${suite.pixel_keys}

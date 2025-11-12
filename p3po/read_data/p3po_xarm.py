@@ -78,7 +78,7 @@ class BCDataset(IterableDataset):
         history_len,
         prompt,
         temporal_agg,
-        num_queries,
+        num_future_actions,
         img_size,
         action_after_steps,
         intermediate_goal_step,
@@ -101,7 +101,7 @@ class BCDataset(IterableDataset):
 
         # temporal aggregation
         self._temporal_agg = temporal_agg
-        self._num_queries = num_queries
+        self._num_future_actions = num_future_actions
 
         # get data paths
         self._paths = []
@@ -323,7 +323,7 @@ class BCDataset(IterableDataset):
         else:
             task_emb = 0
 
-        # Sample obs, action
+        # Index for the trajectory beginning
         sample_idx = np.random.randint(
             0, len(observations[self._keys[0]]) - self._history_len
         )
@@ -339,38 +339,52 @@ class BCDataset(IterableDataset):
                         for i in range(len(sampled_input[key]))
                     ]
                 )
+        start_idx = sample_idx
+        end = sample_idx + self._history_len
+
+        # combine cartesian states and gripper states
+        cartesian_states = observations["cartesian_states"][start_idx : end]
+        gripper_states = observations["gripper_states"][start_idx : end][:, None]
+
         sampled_proprioceptive_state = np.concatenate(
-            [
-                observations["cartesian_states"][
-                    sample_idx : sample_idx + self._history_len
-                ],
-                observations["gripper_states"][
-                    sample_idx : sample_idx + self._history_len
-                ][:, None],
-            ],
+            [cartesian_states, gripper_states],
             axis=1,
         )
 
         if self._temporal_agg:
             # arrange sampled action to be of shape (history_len, num_queries, action_dim)
             sampled_action = np.zeros(
-                (self._history_len, self._num_queries, actions.shape[-1])
+                (self._history_len, self._num_future_actions, actions.shape[-1])
             )
-            num_actions = (
-                self._history_len + self._num_queries - 1
-            )  # -1 since its num_queries including the last action of the history
-            act = np.zeros((num_actions, actions.shape[-1]))
-            act[: min(len(actions), sample_idx + num_actions) - sample_idx] = actions[
-                sample_idx : sample_idx + num_actions
+
+            # The target number of actions we want, but we might not be able to get
+
+            # -1 since its num_queries including the last action of the history. The -1 accounts for the overlap between consecutive windows in the sliding window.
+            n_actions_needed = (self._history_len + self._num_future_actions - 1)
+            act = np.zeros((n_actions_needed, actions.shape[-1]))
+
+            # extract n_actions_needed actions starting at start idx. We might not
+            # get up to n_actions_needed in which case get to the end of actions
+            # then we'll pad from there
+            avail_last_idx = min(len(actions), start_idx + n_actions_needed)
+            act[: avail_last_idx - start_idx] = actions[
+                start_idx : start_idx + n_actions_needed
             ]
-            if len(actions) < sample_idx + num_actions:
-                act[len(actions) - sample_idx :] = actions[-1]
+
+            # pad with last action if we didn't have enough
+            if len(actions) < start_idx + n_actions_needed:
+                act[len(actions) - start_idx :] = actions[-1]
+
+            # overlap actions with a sliding window
+            # history_len x 1 x num_queries x action_dim
             sampled_action = np.lib.stride_tricks.sliding_window_view(
-                act, (self._num_queries, actions.shape[-1])
+                act, (self._num_future_actions, actions.shape[-1])
             )
+
+            # history_len x num_queries x action_dim
             sampled_action = sampled_action[:, 0]
         else:
-            sampled_action = actions[sample_idx : sample_idx + self._history_len]
+            sampled_action = actions[start_idx : start_idx + self._history_len]
 
         return_dict = {}
         for key in self._keys:
@@ -384,6 +398,9 @@ class BCDataset(IterableDataset):
         # prompt
         if self._prompt == "text":
             return return_dict
+
+
+        # Everything here is not used
         elif self._prompt == "goal":
             prompt_episode = self._sample_episode(env_idx)
             prompt_observations = prompt_episode["observation"]

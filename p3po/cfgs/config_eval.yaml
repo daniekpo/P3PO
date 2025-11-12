@@ -6,17 +6,18 @@ defaults:
   - override hydra/launcher: submitit_local
 
 # Root Dir
-root_dir: /scratch/repos/ref_P3PO
+root_dir: /scratch/repos/P3PO
 data_dir: /scratch/data/open_teach/
 use_p3po: True
 training: False
 eval_task_name: "put tennis ball in plate"
 relative_actions: true
 use_dataset_stats_for_action_spec: false
-use_quaternion_orientation: false
+use_quaternion_orientation: true
 training_dir: null
 use_training_action_spec: true
 action_spec_path: null
+subsample: 1
 
 # misc
 seed: 2
@@ -45,21 +46,22 @@ run_name: eval
 
 # action chunking
 temporal_agg: true # aggregate actions over time
-num_queries: 10
+num_future_actions: 10
 
 # expert dataset
 expert_dataset: ${dataloader.bc_dataset}
 
 # Load weights
-bc_weight: ${training_dir}/snapshot/600000.pt
+train_step: 600000
+bc_weight: ${training_dir}/snapshot/${train_step}.pt
 
 hydra:
   run:
-    dir: ./exp_local/${run_name}/${now:%m.%d.%H.%M}_${experiment}/
+    dir: ${training_dir}/eval_${now:%m.%d.%H.%M}/
   sweep:
-    dir: ./exp_local/${run_name}/${now:%m.%d.%H.%M}
+    dir: ${training_dir}/eval_sweep_${now:%m.%d.%H.%M}
     subdir: ${hydra.job.num}
   launcher:
     tasks_per_node: 1
     nodes: 1
-    submitit_folder: ./exp_local/${run_name}/${now:%m.%d.%H.%M}_${experiment}/.slurm
+    submitit_folder: ${training_dir}/eval_${now:%m.%d.%H.%M}/.slurm

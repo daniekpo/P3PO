@@ -24,7 +24,7 @@ eval_history_len: ${suite.eval_history_len}
 separate_encoders: false # have a separate encoder for each pixel key
 temporal_agg: ${temporal_agg}
 max_episode_len: ${suite.task_make_fn.max_episode_len}
-num_queries: ${num_queries}
+num_future_actions: ${num_future_actions}
 use_language: ${use_language}
 prompt: ${prompt}
 film: true

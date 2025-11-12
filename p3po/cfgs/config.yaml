@@ -14,7 +14,8 @@ eval_task_name: "put tennis ball in plate"
 relative_actions: true
 use_dataset_stats_for_action_spec: false
 action_spec_path: null
-use_quaternion_orientation: false
+use_quaternion_orientation: true
+subsample: 1
 
 # misc
 seed: 2
@@ -43,7 +44,7 @@ run_name: training
 
 # action chunking
 temporal_agg: true # aggregate actions over time
-num_queries: 10
+num_future_actions: 10
 
 # expert dataset
 expert_dataset: ${dataloader.bc_dataset}
