@@ -4,6 +4,7 @@ processed_data/action_specs/
 __pycache__/
 *.py[cod]
 *$py.class
+debug/
 
 # C extensions
 *.so

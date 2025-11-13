@@ -87,7 +87,7 @@ class BCDataset(IterableDataset):
         subsample,
         skip_first_n,
         relative_actions,
-        use_quaternion_orientation,
+        use_quaternion_orientation
     ):
         self._obs_type = obs_type
         self._prompt = prompt
@@ -112,6 +112,9 @@ class BCDataset(IterableDataset):
             [Path(processed_path) / f"points/{task}.pkl" for task in tasks]
         )
 
+        self._max_state_dim = 7
+        self._max_action_dim = 7
+
         paths = {}
         graph_paths = {}
         idx = 0
@@ -131,7 +134,7 @@ class BCDataset(IterableDataset):
         # read data
         self._episodes = {}
         self._max_episode_len = 0
-        self._max_state_dim = 0
+
         self._num_samples = 0
         min_stat, max_stat = None, None
         min_act, max_act = None, None
@@ -229,8 +232,7 @@ class BCDataset(IterableDataset):
                         else len(observations[i][self._keys[0]])
                     ),
                 )
-                self._max_state_dim = 7
-                self._max_action_dim = 7
+
                 self._num_samples += len(observations[i][self._keys[0]])
 
                 # max, min action
@@ -305,17 +307,21 @@ class BCDataset(IterableDataset):
         # Samples from envs
         self.envs_till_idx = len(self._episodes)
 
-    def _sample_episode(self, env_idx=None):
-        idx = random.randint(0, self.envs_till_idx - 1) if env_idx is None else env_idx
+    def _sample_episode(self, env_idx=None, episode_idx=None):
+        if env_idx is None:
+            env_idx = random.randint(0, self.envs_till_idx - 1) if env_idx is None else env_idx
 
-        # sample idx with probability
-        idx = np.random.choice(list(self._episodes.keys()))
+            # sample idx with probability
+            env_idx = np.random.choice(list(self._episodes.keys()))
 
-        episode = random.choice(self._episodes[idx])
-        return (episode, idx) if env_idx is None else episode
+        if episode_idx is not None:
+            episode = self._episodes[env_idx][episode_idx]
+        else:
+            episode = random.choice(self._episodes[env_idx])
+        return (episode, env_idx)
 
-    def _sample(self):
-        episodes, env_idx = self._sample_episode()
+    def _sample(self, env_idx=None, episode_idx=None, start_idx=None, end_idx=None):
+        episodes, env_idx = self._sample_episode(env_idx=env_idx, episode_idx=episode_idx)
         observations = episodes["observation"]
         actions = episodes["action"]
         if "task_emb" in episodes:
@@ -324,13 +330,16 @@ class BCDataset(IterableDataset):
             task_emb = 0
 
         # Index for the trajectory beginning
-        sample_idx = np.random.randint(
-            0, len(observations[self._keys[0]]) - self._history_len
-        )
+        if start_idx is None:
+            start_idx = np.random.randint(
+                0, len(observations[self._keys[0]]) - self._history_len
+            )
+        end_idx = end_idx or start_idx + self._history_len
+
         sampled_input = {}
         for key in self._keys:
             sampled_input[key] = observations[key][
-                sample_idx : sample_idx + self._history_len
+                start_idx : end_idx
             ]
             if self._obs_type == "pixels":
                 sampled_input[key] = torch.stack(
@@ -339,12 +348,11 @@ class BCDataset(IterableDataset):
                         for i in range(len(sampled_input[key]))
                     ]
                 )
-        start_idx = sample_idx
-        end = sample_idx + self._history_len
+
 
         # combine cartesian states and gripper states
-        cartesian_states = observations["cartesian_states"][start_idx : end]
-        gripper_states = observations["gripper_states"][start_idx : end][:, None]
+        cartesian_states = observations["cartesian_states"][start_idx : end_idx]
+        gripper_states = observations["gripper_states"][start_idx : end_idx][:, None]
 
         sampled_proprioceptive_state = np.concatenate(
             [cartesian_states, gripper_states],
@@ -384,7 +392,7 @@ class BCDataset(IterableDataset):
             # history_len x num_queries x action_dim
             sampled_action = sampled_action[:, 0]
         else:
-            sampled_action = actions[start_idx : start_idx + self._history_len]
+            sampled_action = actions[start_idx : end_idx]
 
         return_dict = {}
         for key in self._keys:
@@ -431,7 +439,7 @@ class BCDataset(IterableDataset):
                 self._intermediate_goal_step // 10 * 3,
             )
             goal_idx = min(
-                sample_idx + intermediate_goal_step,
+                start_idx + intermediate_goal_step,
                 len(prompt_observations[self._keys[0]]) - 1,
             )
             # pixels

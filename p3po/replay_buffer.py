@@ -9,11 +9,11 @@ def _worker_init_fn(worker_id):
     random.seed(seed)
 
 
-def make_expert_replay_loader(iterable, batch_size):
+def make_expert_replay_loader(iterable, batch_size, num_workers=2):
     loader = torch.utils.data.DataLoader(
         iterable,
         batch_size=batch_size,
-        num_workers=2,
+        num_workers=num_workers,
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
     )

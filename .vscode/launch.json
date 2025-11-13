@@ -1,0 +1,49 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Generate points",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "generate_points.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/p3po/data_generation",
+            "args": "put_tennis_ball_in_plate_1_10",
+            "justMyCode": true
+        },
+        {
+            "name": "Train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train.py",
+            "args": "agent=baku suite=ur5e_suite dataloader=p3po_xarm suite.hidden_dim=256 temporal_agg=false",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
+            },
+            "cwd": "${workspaceFolder}/p3po"
+        },
+        {
+            "name": "Eval",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "eval.py",
+            "args": "use_training_action_spec=false use_dataset_stats_for_action_spec=true use_quaternion_orientation=true suite.task_make_fn.max_episode_len=60 bc_weight=/scratch/repos/ref_P3PO/p3po/exp_local/new_100_data/11.07.14.23_train/snapshot/600000.pt",
+            "cwd": "${workspaceFolder}/p3po",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/p3po:${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Debug Run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "debug_run.py",
+            "console": "integratedTerminal",
+        }
+    ]
+}

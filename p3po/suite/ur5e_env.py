@@ -207,7 +207,6 @@ class UR5Env(gym.Env):
 
             gripper = action[6]
             self.robot.movel(next_pose, acc=0.1, vel=0.1)
-            # self.robot.speedl(next_pose)
 
             # Gripper control
             if gripper >= 0.5:
